@@ -7,7 +7,8 @@
  * it nears, the balloon wobbles and squeaks. Ten balloons a round; the tied ones float up to the string along the top.
  * The skill is the moment you let go: the size is worked out from the key's own time, to the millisecond.
  *
- * Levels (K1): 1 a steady, slow pump; 2 it surges with each stroke; 3 faster, tighter scoring, and it pops sooner.
+ * Every balloon pumps its own way (a rate, two surges on it: it lurches, stalls and rushes). Levels (K1): 1 the
+ * gentlest; 2 faster and lumpier; 3 faster still, tighter scoring, and it pops sooner.
  * PLAY starts and stops. Best: points in a round, sav.more[SV_BALLOON]. Part of the unity build. */
 #include "game.h"
 
@@ -32,6 +33,7 @@ static struct {
     int front;                           /* the cabinet in front (entered, not left) */
     int score, tied, popped, perfect, new_best;
     float r, target, pop_at;             /* the size (px), the ring's, the hidden pop point's */
+    float rate, a1, a2, w1, w2, p1, p2;  /* this balloon's pump: px/s, and its two surges (depth, rad/s, phase) */
     int strokes;                         /* the pump's strokes heard this balloon */
     int last_pts;                        /* the last balloon's points (-1: popped) */
     int too_big;                         /* the last one, past the ring */
@@ -46,7 +48,7 @@ static struct {
 static const uint16_t BLN_COLS[BLN_N] = {RGB(232, 80, 91), RGB(242, 163, 58), RGB(250, 210, 60), RGB(110, 190, 110),
                                          RGB(62, 154, 176), RGB(110, 143, 196), RGB(150, 100, 190), RGB(232, 88, 128),
                                          RGB(255, 140, 110), RGB(120, 200, 200)};
-static const char *const BLN_LEVEL_NAME[BLN_LEVELS] = {"STEADY", "SURGING", "TIGHT"};
+static const char *const BLN_LEVEL_NAME[BLN_LEVELS] = {"GENTLE", "LUMPY", "TIGHT"};
 
 static uint16_t bln_col(int i) { return BLN_COLS[(i + bln.col0) % BLN_N]; }
 
@@ -64,16 +66,30 @@ static int bln_pad(int k)               /* a pad key: a white key from C4 to C5 
     return 0;
 }
 
-#define BLN_STROKE 0.6f                  /* s a stroke of the pump */
+#define BLN_STROKE (6.2831853f / bln.w1)   /* s a stroke of the pump: this balloon's */
 
-static float bln_size(uint32_t held_ms)  /* the size after the key has been held so long: a steady rate, and on level
-                                          * 2 a surge each stroke (the rate's integral, so a release is exact) */
+/* the size after the key has been held so long. Every balloon pumps its own way: a rate, and two surges on it of
+ * their own depth, speed and phase, so it lurches, stalls and rushes (the rate's integral, so a release is exact;
+ * the surges' depths add to under 1, so it never shrinks) */
+static float bln_size(uint32_t held_ms)
 {
-    static const float RATE[BLN_LEVELS] = {13.0f, 15.0f, 19.0f};
-    float t = (float)held_ms * 0.001f, r = BLN_EMPTY + RATE[bln.level - 1] * t;
-    if (bln.level == 2)
-        r += 13.0f * BLN_STROKE / 6.2831853f * (1.0f - fm_cosf(t * (6.2831853f / BLN_STROKE)));
-    return r;
+    float t = (float)held_ms * 0.001f;
+    return BLN_EMPTY + bln.rate * (t + bln.a1 / bln.w1 * (fm_cosf(bln.p1) - fm_cosf(bln.w1 * t + bln.p1)) +
+                                   bln.a2 / bln.w2 * (fm_cosf(bln.p2) - fm_cosf(bln.w2 * t + bln.p2)));
+}
+
+static void bln_pump(void)               /* this balloon's way of pumping */
+{
+    static const float RATE[BLN_LEVELS] = {19.0f, 23.0f, 28.0f}, A1[BLN_LEVELS] = {0.35f, 0.55f, 0.6f},
+                       A2[BLN_LEVELS] = {0.2f, 0.3f, 0.35f};
+    int lv = bln.level - 1;
+    bln.rate = RATE[lv] * (0.85f + 0.03f * (float)rnd(11));   /* x0.85 .. x1.15 */
+    bln.a1 = A1[lv] * (0.6f + 0.04f * (float)rnd(11));
+    bln.a2 = A2[lv] * (0.6f + 0.04f * (float)rnd(11));
+    bln.w1 = 6.2831853f / (0.35f + 0.05f * (float)rnd(12));   /* a stroke of 0.35 .. 0.9 s */
+    bln.w2 = 6.2831853f / (0.9f + 0.1f * (float)rnd(10));     /* a slow lurch of 0.9 .. 1.8 s */
+    bln.p1 = 0.5236f * (float)rnd(12);
+    bln.p2 = 0.5236f * (float)rnd(12);
 }
 
 static void bln_tone_off(void)
@@ -85,13 +101,14 @@ static void bln_tone_off(void)
 
 static void bln_next(uint32_t now)       /* the next balloon on the nozzle: its ring and its pop point */
 {
-    static const uint8_t GAP_LO[BLN_LEVELS] = {7, 6, 4}, GAP_N[BLN_LEVELS] = {10, 9, 6};
+    static const uint8_t GAP_LO[BLN_LEVELS] = {5, 4, 3}, GAP_N[BLN_LEVELS] = {8, 6, 4};
     bln.phase = BLN_WAIT;
     bln.phase_ms = now;
     bln.r = BLN_EMPTY;
     bln.target = 22.0f + (float)rnd(21);
     bln.pop_at = bln.target + (float)(GAP_LO[bln.level - 1] + rnd(GAP_N[bln.level - 1])) + (float)rnd(10) * 0.1f;
     bln.strokes = 0;
+    bln_pump();
     bln.ref_ms = now;                    /* the ring's note: the pitch the stretch reaches at it */
     snd_lock();
     bw_tone(1, bln_cents(bln.target), 22);

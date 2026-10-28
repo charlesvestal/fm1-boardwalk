@@ -4,21 +4,23 @@
  * plucked, the tune on the chime, from the tick); tap any key on the beat and your cup spins faster, off the beat it
  * wobbles and slows, and a beat left out lets it slow too. Each key plays its note snapped to the waltz's chord, so
  * tapping sounds like joining in. At top speed a countermelody comes in, the canopy's bulbs chase and the ride swims a
- * little. The waltz quickens every four bars, a fifth faster by the end. A ride is 60 seconds; the score is the tenths of a second held at top speed plus the peak spin.
+ * little. The waltz quickens every two bars, 4% each time, and never stops: the ride is over when the cup stops,
+ * the waltz too fast to keep up with; the score is the tenths of a second held at top speed plus the peak spin.
  *
  * Levels (K1): 1 a tap a bar (the oom), 2 every beat (oom-pah-pah), 3 every beat of a faster waltz, judged closer.
  * During the ride any knob spins the cup a little too (a DJ's scratch), never up to top speed: that takes the beat.
  * PLAY starts and stops. Its level and best are sav.more[SV_TEACUPS]. Part of the unity build. */
 #include "game.h"
 
-#define TC_RIDE 60000                    /* ms a ride */
+#define TC_RIDE 600000                   /* ms a ride at most (it ends long before: no one keeps up) */
 #define TC_TOP 85.0f                     /* the spin that counts as top speed */
 #define TC_TOP_OFF 75.0f                 /* below this it is no longer at the top (for the words and the music) */
 #define TC_KNOB_MAX 70.0f                /* as far as the knobs alone can spin it */
 #define TC_LAG 0                         /* ms from a key to its sound, taken off the taps' times (to set on the FM-1) */
 #define TC_LEVELS 3
-#define TC_FASTER 4                      /* bars between the waltz's speed-ups */
-#define TC_STEPS 10                      /* speed-ups at most, a 50th off the beat each: a fifth faster in all */
+#define TC_FASTER 2                      /* bars between the waltz's speed-ups, each 4% off the beat, without end */
+#define TC_STEPS 60                      /* (the beat's lengths worked out ahead; past them it stays at the last) */
+#define TC_BEAT_MIN 80                   /* ms: where the speeding-up stops (long past anyone's tapping) */
 #define TC_CAB RGB(90, 170, 140)
 #define TC_CAB2 RGB(58, 128, 104)
 
@@ -40,6 +42,7 @@ static const char *const TC_LEVEL_WORD[TC_LEVELS] = {"ONE A BAR", "EVERY BEAT", 
 static struct {
     int state, level, new_best, score;
     int32_t beat;                        /* ms a beat, at the start (tc_len: as it quickens) */
+    int32_t lens[TC_STEPS + 1], blk[TC_STEPS + 1];   /* each speed-up's beat, and the ride time it starts at */
     volatile uint32_t t0;                /* plat_ms of the first judged beat (a bar of the waltz before it) */
     volatile float speed, peak;          /* the spin, 0..100 */
     volatile uint32_t top_ms;            /* held at top speed */
@@ -73,31 +76,38 @@ static int tc_target(int b) { return b >= 0 && (tc.level > 0 || b % 3 == 0); }  
 static int32_t tc_len(int bar)           /* ms a beat in this bar */
 {
     int k = bar < 0 ? 0 : bar / TC_FASTER;
-    return tc.beat - tc.beat * (k > TC_STEPS ? TC_STEPS : k) / 50;
+    return tc.lens[k > TC_STEPS ? TC_STEPS : k];
+}
+
+static void tc_tempi(void)               /* the speed-ups worked out: each 4% off the beat, to TC_BEAT_MIN */
+{
+    int k;
+    tc.lens[0] = tc.beat;
+    tc.blk[0] = 0;
+    for (k = 1; k <= TC_STEPS; k++) {
+        tc.lens[k] = tc.lens[k - 1] * 96 / 100 > TC_BEAT_MIN ? tc.lens[k - 1] * 96 / 100 : TC_BEAT_MIN;
+        tc.blk[k] = tc.blk[k - 1] + 3 * TC_FASTER * tc.lens[k - 1];
+    }
 }
 
 static int32_t tc_bt(int b)              /* the ride time of beat b (the bar before counts in at the first tempo) */
 {
-    int32_t t = 0;
     int k;
     if (b < 0)
         return b * tc.beat;
-    for (k = 0; (k + 1) * 3 * TC_FASTER <= b; k++)
-        t += 3 * TC_FASTER * tc_len(k * TC_FASTER);
-    return t + (b - k * 3 * TC_FASTER) * tc_len(k * TC_FASTER);
+    k = b / (3 * TC_FASTER);
+    k = k > TC_STEPS ? TC_STEPS : k;
+    return tc.blk[k] + (b - k * 3 * TC_FASTER) * tc.lens[k];
 }
 
 static int tc_beat_at(int32_t t)         /* the beat sounding at ride time t */
 {
-    int b = 0;
-    int32_t blk;
+    int k = 0;
     if (t < 0)
         return -(int)((-t + tc.beat - 1) / tc.beat);
-    while (t >= (blk = 3 * TC_FASTER * tc_len(b / 3))) {
-        t -= blk;
-        b += 3 * TC_FASTER;
-    }
-    return b + (int)(t / tc_len(b / 3));
+    while (k < TC_STEPS && t >= tc.blk[k + 1])
+        k++;
+    return k * 3 * TC_FASTER + (int)((t - tc.blk[k]) / tc.lens[k]);
 }
 
 static int32_t tc_step_t(int s)          /* the ride time of the waltz's eighth s */
@@ -128,6 +138,7 @@ static void tc_go(void)
     rnd_state ^= plat_ms() * 2654435761u;
     tc.level = tc_lv();
     tc.beat = 60000 / TC_LV[tc.level].bpm;
+    tc_tempi();
     tc.speed = tc.peak = 0.0f;
     tc.top_ms = 0;
     tc.step = -6;
@@ -498,8 +509,8 @@ static void teacups_draw(uint32_t now)
         cv_text(6, 3, &FONT_XS, "TEACUPS", G_PAPER);
         s[0] = 0;
         if (tc.state == TC_RIDE_ON) {
-            int_text(t < 0 ? TC_RIDE / 1000 : clamp((TC_RIDE - t + 999) / 1000, 0, TC_RIDE / 1000), s);
-            text_cat(s, " S LEFT");
+            int_text(60000 / tc_len(t < 0 ? 0 : tc_beat_at(t) / 3), s);   /* the waltz's tempo, climbing */
+            text_cat(s, " BPM");
         } else if (tc.state == TC_OVER) {
             text_cat(s, "SCORE ");
             int_text(tc.score, s + 6);
@@ -509,7 +520,7 @@ static void teacups_draw(uint32_t now)
         }
         cv_text(234 - text_w(&FONT_XS, s), 3, &FONT_XS, s, G_PAPER);
         if (tc.state == TC_STAND) {
-            round_rect(14, 30, 212, 74, 8, G_PAPER);   /* above your cup, so it shows (its best is up top) */
+            round_rect(14, 30, 212, 88, 8, G_PAPER);   /* above your cup, so it shows (its best is up top) */
             cv_text(24, 38, &FONT_XS, "K1 LEVEL", G_PLANK2);
             int_text(tc_lv() + 1, s);
             cv_text(94, 36, &FONT_B, s, G_INK);
@@ -518,7 +529,8 @@ static void teacups_draw(uint32_t now)
                                                       "TAP ANY KEY ON EVERY BEAT TO SPIN.", G_PLANK2);
             cv_text(24, 74, &FONT_XS, tc_lv() == 0 ? "BEAT TO SPIN. OTHER TAPS WOBBLE." :
                                                       "OFF THE BEAT YOUR CUP WOBBLES.", G_PLANK2);
-            cv_text(24, 88, &FONT_XS, "STAY AT TOP SPEED TO SCORE.", G_PLANK2);
+            cv_text(24, 88, &FONT_XS, "IT NEVER STOPS SPEEDING UP:", G_PLANK2);
+            cv_text(24, 102, &FONT_XS, "STAY AT THE TOP AS LONG AS YOU CAN.", G_PLANK2);
         } else {
             round_rect(6, 52, 68, 52, 6, G_PAPER);   /* the time held at the top */
             cv_text(14, 56, &FONT_XS, "AT THE TOP", G_PLANK2);
@@ -535,8 +547,8 @@ static void teacups_draw(uint32_t now)
                     static const char *const WORD[5] = {"", "PERFECT", "GOOD", "WOBBLE!", "MISSED"};
                     w = WORD[tc.word];
                     c = tc.word == TW_PERFECT ? TC_CAB2 : tc.word == TW_GOOD ? G_INK : G_RED;
-                } else if (t >= 0 && tc_beat_at(t) / 3 % TC_FASTER == 0 && tc_beat_at(t) / 3 > 0 &&
-                           tc_beat_at(t) / 3 / TC_FASTER <= TC_STEPS) {   /* the bar the waltz quickens */
+                } else if (t >= 0 && tc_beat_at(t) % (3 * TC_FASTER) < 2 && tc_beat_at(t) > 0) {   /* the waltz
+                                                                                           * quickens */
                     w = "FASTER!";
                     c = G_ORANGE;
                 } else if (tc.at_top) {
@@ -583,7 +595,7 @@ static void teacups_draw(uint32_t now)
     }
 }
 
-static void tc_over(uint32_t now)        /* the ride's 60 seconds are up */
+static void tc_over(uint32_t now)        /* the cup has stopped: the waltz got too fast */
 {
     char t[24];
     uint16_t *best = &sav.more[SV_TEACUPS].best;
@@ -615,7 +627,8 @@ static void teacups_frame(uint32_t now)
 {
     float dt = (float)clamp((int32_t)(now - tc.drawn_ms), 0, 100) * 0.001f;
     tc.drawn_ms = now;
-    if (tc.state == TC_RIDE_ON && (int32_t)(now - tc.t0) >= TC_RIDE)
+    if (tc.state == TC_RIDE_ON && ((int32_t)(now - tc.t0) >= TC_RIDE ||   /* the cup stopped: it got away */
+                                   (tc.speed < 0.5f && (tc.peak >= 20.0f || (int32_t)(now - tc.t0) > 8 * 3 * tc.beat))))
         tc_over(now);
     if (tc.state == TC_RIDE_ON && tc.at_top != tc.said_top) {   /* top speed reached, or lost */
         tc.said_top = tc.at_top;
@@ -687,7 +700,7 @@ static void teacups_where(char *t)
         text_cat(t, TC_LEVEL_WORD[tc_lv()]);
         text_cat(t, tc_lv() == 0 ? ". TAP ANY KEY ON THE FIRST BEAT OF EACH BAR TO SPIN YOUR CUP. OTHER TAPS WOBBLE IT. " :
                                    ". TAP ANY KEY ON EVERY BEAT TO SPIN YOUR CUP. OFF THE BEAT IT WOBBLES. ");
-        text_cat(t, "STAY AT TOP SPEED TO SCORE. ");
+        text_cat(t, "THE WALTZ NEVER STOPS SPEEDING UP: STAY AT THE TOP AS LONG AS YOU CAN. ");
         if (sav.more[SV_TEACUPS].best) {
             text_cat(t, "BEST ");
             sp_num(t, sav.more[SV_TEACUPS].best);
@@ -697,14 +710,14 @@ static void teacups_where(char *t)
         return;
     }
     if (tc.state == TC_RIDE_ON) {
-        int32_t left = clamp((TC_RIDE - (int32_t)(plat_ms() - tc.t0) + 999) / 1000, 0, TC_RIDE / 1000);
+        int32_t t0 = (int32_t)(plat_ms() - tc.t0);
         text_cat(t, tc.at_top ? "TEACUPS. TOP SPEED. SPIN " : "TEACUPS. SPIN ");
         sp_pct(t, (int32_t)(tc.speed + 0.5f));
         text_cat(t, ". ");
         sp_num(t, (int32_t)(tc.top_ms / 1000u));
         text_cat(t, " SECONDS AT THE TOP. ");
-        sp_num(t, left);
-        text_cat(t, " SECONDS LEFT. PLAY STOPS.");
+        sp_num(t, 60000 / tc_len(t0 < 0 ? 0 : tc_beat_at(t0) / 3));
+        text_cat(t, " BPM. PLAY STOPS.");
         return;
     }
     text_cat(t, tc.new_best ? "TEACUPS. RIDE OVER. NEW BEST. SCORE " : "TEACUPS. RIDE OVER. SCORE ");
@@ -761,6 +774,8 @@ static int teacups_expect(const char *what, int *got)
         *got = tc.wobbles;
     else if (!strcmp(what, "teacups_misses"))
         *got = tc.misses;
+    else if (!strcmp(what, "teacups_bpm"))   /* the waltz's tempo now */
+        *got = 60000 / tc_len((int32_t)(plat_ms() - tc.t0) < 0 ? 0 : tc_beat_at((int32_t)(plat_ms() - tc.t0)) / 3);
     else if (!strcmp(what, "teacups_level"))
         *got = sav.more[SV_TEACUPS].level;
     else
@@ -775,6 +790,8 @@ static void teacups_host_ms(uint32_t now)
     at = host_autoteacups == 2 ? 70 : 0;
     {
         int b = tc_beat_at(t - at);
+        if (tc_len(b / 3) < 200)         /* (a player's hands: no faster than this) */
+            return;
         if (host_autoteacups == 3)       /* off: halfway between the beats */
             at = tc_len(b / 3) / 2;
         if (t < at || t - at != tc_bt(b) || (host_autoteacups != 3 && !tc_target(b)))
@@ -806,6 +823,8 @@ static void teacups_speak_dump(void)
         sp_out("READOUT", sp_buf);
     }
     tc.state = TC_RIDE_ON;               /* riding: on the way up, and at the top */
+    tc.beat = 60000 / TC_LV[0].bpm;
+    tc_tempi();
     tc.t0 = plat_ms();
     tc.speed = 42.0f;
     tc.top_ms = 0;

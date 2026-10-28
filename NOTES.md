@@ -16,8 +16,8 @@ boardwalk menu runs, Pitch and Tiles are cabinets with attract screens but no ga
   **Claw**, **Striker**, **Balloons**, **Fishing**, **Fortune**, **Teacups**, **Bumpers**, **Coaster** (17 in all).
   Velocity and pressure (lib/touch) were tried and are out: neither steady enough on the FM-1 to play by. Each cabinet has a three-word blurb (game_t.blurb) under the boardwalk, and the one
   in front blinks PRESS PLAY. A design and copy pass (2026-10-28, one reviewer a game) is in the git log.
-  Keys are read by the 1 kHz tick (exact times; Bells, Tiles and Echo answer in the tick itself); the black keys
-  show what comes next (Bells: your place; Tiles: the next lane). The boardwalk plays each
+  Keys are read by the 1 kHz tick (exact times; Bells, Tiles and Echo answer in the tick itself); the keys
+  show what comes next (Bells: your place, on the black keys; Tiles: the next lane, dimmer, on the white keys). The boardwalk plays each
   cabinet's attract tune quietly over the sea, fading as the row moves; K1 the sea, K2 the tunes. Gulls call.
 - Tickets and prizes (2026-10-28): every game pays tickets at a finished round's end (tickets_win; a stopped round
   pays nothing; at least 2, at most 100), counted up on a ticket at the top right; on leaving, the cabinet feeds them
@@ -200,6 +200,9 @@ Bells as built: K1 method (ten: Plain Hunt, Plain Bob and Grandsire Doubles; Pla
   SURGING, TIGHT. 10 balloons; best points (sav.more[SV_BALLOON]).
 - Tickets: a third of the points (x1.25 on level 2, x1.5 on 3), at least 2.
 
+- Made wonkier and faster (2026-10-28): each balloon pumps its own way (a rate x0.85-1.15 and two surges of
+  random depth, speed and phase: it lurches, stalls and rushes); rates 19 / 23 / 28 px/s; the pop point 5-12 / 4-9 /
+  3-6 px past the ring. Levels GENTLE, LUMPY, TIGHT.
 ## Fishing (built 2026-10-28)
 - The pond over the keys; each fish a note, humming as it passes under the float. A key casts; a fish nibbles, the
   float dips with its note: press that note's key within 0.9 / 0.7 / 0.45 s. Reel by tapping with the line's tug
@@ -218,8 +221,8 @@ Bells as built: K1 method (ten: Plain Hunt, Plain Bob and Grandsire Doubles; Pla
 - A 60 s ride to a fairground waltz in C (from the tick). Any key on a beat to tap spins the cup (perfect ±40 ms,
   good ±90); off the beat it wobbles; a beat left out costs; drag 1.5 + 6 %/s. Top speed (85+): a countermelody, the
   bulbs and keys chase. Score = tenths at the top + the peak. Any knob spins it a little (to 70). K1: ONE A BAR, EVERY
-  BEAT, FAST WALTZ. The waltz quickens every four bars (a 50th off the beat each, ten times: a fifth
-  faster), FASTER! shown for the bar. TC_LAG to set on the FM-1. Tickets: the score / 12, x1 / 1.25 / 1.5 by level
+  BEAT, FAST WALTZ. The waltz quickens every two bars, 4% off the beat each time, without end: the ride is
+  over when the cup stops (it cannot be kept up; a perfect player lasts ~40 s); the header shows the BPM climbing. TC_LAG to set on the FM-1. Tickets: the score / 12, x1 / 1.25 / 1.5 by level
   (2 to 100).
 
 ## Bumpers (built 2026-10-28)

@@ -1,5 +1,6 @@
-# Teacups: a ride tapped on every beat (the test player) reaches top speed and holds it; a ride tapped between the
-# beats wobbles and scores lower; the best kept from the first. Level 2 (every beat), then level 1 (one a bar)
+# Teacups: a ride tapped on every beat (the test player, who can tap no faster than a beat in 200 ms) reaches top
+# speed and holds it until the waltz, speeding up without end, gets away from it; a ride tapped between the beats
+# wobbles and stops at once; the best kept from the first. Level 2 (every beat), then level 1 (one a bar)
 wait 800
 turn SELECT 6
 wait 400
@@ -23,41 +24,46 @@ wait 8000
 expect teacups_speed >85
 expect teacups_wobbles 0
 shot top.png
-wait 47000
+wait 6000
+expect teacups_state 1
+expect teacups_bpm >180
+shot faster.png
+wait 30000
 expect teacups_state 2
-expect teacups_misses 0
+expect teacups_misses >5
 expect teacups_wobbles 0
 expect teacups_peak 100
-expect teacups_top >400
-expect teacups_score >500
-expect teacups_best >500
+expect teacups_top >200
+expect teacups_score >300
+expect teacups_best >300
 # a ride at the top: its score / 12, x1.25 on level 2
-expect won 61
+expect won >30
+expect won <40
 shot over.png
 autoteacups offbeat
 tap PLAY
-wait 20000
+wait 6000
 expect teacups_state 1
 expect teacups_hits 0
-expect teacups_wobbles >40
 expect teacups_speed <10
 shot wobble.png
-wait 42000
+wait 8000
 expect teacups_state 2
-expect teacups_score <10
+expect teacups_score <25
 # a ride wobbled through: the pity tickets
-expect won 63
-expect teacups_best >500
+expect won >32
+expect won <42
+expect teacups_best >300
 shot over_low.png
 autoteacups late
 tap PLAY
-wait 63000
+wait 45000
 expect teacups_state 2
 expect teacups_perfect 0
-expect teacups_hits >130
+expect teacups_hits >80
 expect teacups_score >100
-expect won 106
-expect teacups_best >500
+expect won >50
+expect teacups_best >300
 autoteacups off
 turn K1 -1
 expect teacups_level 1
@@ -72,5 +78,6 @@ tap PLAY
 expect teacups_state 0
 # a ride stopped with PLAY pays nothing
 wait 3000
-expect won 106
+expect won >50
+expect won <80
 expect pay 0

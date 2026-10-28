@@ -7,7 +7,7 @@
  * The tiles are made from the melody: on HARD a tile for every note, on NORMAL one a beat at most (a tile carries
  * the notes until the next: each is a notch across it, crossing the line as it sounds), on EASY one every two beats.
  * A tile's lane follows the tune's contour: up, a lane to the right; down, to the left. Bright keys always mean
- * "press here"; the next tile's lane shows on its black keys, and each note of the tune glows on its own key.
+ * "press here"; the tile after it shows its lane dimmer, and each note of the tune glows on its own (white) key.
  *
  * Standing: K1 the song, K2 the level, K3 the tempo; PLAY starts and stops. Part of the unity build. */
 #include "game.h"
@@ -400,15 +400,13 @@ static uint16_t tiles_key_col(int k)     /* the lanes on the keys, each in its c
     return mix(LANE_COL[lane], G_PAPER, 170);
 }
 
-/* the FM-1's own keys: a lane's four white keys light as its tile comes to the line, so you know where to press;
- * the black keys of the lane of the tile after it light at the mid level (what comes next); and each note of the tune
- * flashes on its own key as it sounds (the tune's real notes, whatever lane they came from) */
-static const uint16_t LANE_BLACK[4] = {1 | 2 | 4, 8 | 16 | 32, 64 | 128 | 256, 512 | 1024};   /* as lane_of() sorts
-                                                                                    * them (PLAT_BLACK_KEYS' order) */
+/* the FM-1's own keys, the white ones only (the lanes are white keys): a lane's four light as its tile comes to the
+ * line, so you know where to press; the lane of the tile after it at the mid level (what comes next); and each note
+ * of the tune flashes on its own key as it sounds, if a white one (the tune's real notes, whatever lane) */
 
 static uint32_t tiles_keys_lit(uint32_t *mid)
 {
-    static const uint8_t WK[16] = PLAT_WHITE_KEYS, BK[11] = PLAT_BLACK_KEYS;
+    static const uint8_t WK[16] = PLAT_WHITE_KEYS;
     uint32_t now = plat_ms(), keys = 0;
     int32_t t = (int32_t)(now - tl.t0);
     int i, w, at_line = -1;
@@ -424,14 +422,13 @@ static uint32_t tiles_keys_lit(uint32_t *mid)
             if (dt <= 400)
                 for (w = 0; w < 4; w++)
                     keys |= 1u << WK[tl.tile_lane[i] * 4 + w];
-        } else {                         /* the one after it: its lane on the black keys */
-            for (w = 0; w < 11; w++)
-                if (LANE_BLACK[tl.tile_lane[i]] >> w & 1u)
-                    *mid |= 1u << BK[w];
+        } else {                         /* the one after it: its lane's white keys, dimmer */
+            for (w = 0; w < 4; w++)
+                *mid |= 1u << WK[tl.tile_lane[i] * 4 + w];
             break;
         }
     }
-    if (tl_sound_key >= 0 && now - tl_sound_ms < 150u)
+    if (tl_sound_key >= 0 && now - tl_sound_ms < 150u && !(TL_BLACK >> tl_sound_key & 1u))
         *mid |= 1u << tl_sound_key;      /* the note sounding: mid (bright is only ever "press here") */
     return keys;
 }
