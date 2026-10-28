@@ -330,9 +330,12 @@ static void gull_draw(uint32_t now)
                 cv_text(24, 146, &FONT_B, s, G_INK);
             }
         }
-        gull_bird(GU_X, (int32_t)gu.y + (gu.state == GS2_OVER ? (int32_t)((now - gu.over_ms) / 20u) : 0),
-                  gu.mode != GU_SING ? now - gu.flap_ms < 150u || (gu.mode == GU_HOLD && gu.vy < -40.0f) :
-                                       (now / 160u & 1u));
+        if (gu.state == GS2_STAND)          /* standing: perched on the card's edge, out of the words' way */
+            gull_bird(196, 29, now % 3000u < 200u);
+        else
+            gull_bird(GU_X, (int32_t)gu.y + (gu.state == GS2_OVER ? (int32_t)((now - gu.over_ms) / 20u) : 0),
+                      gu.mode != GU_SING ? now - gu.flap_ms < 150u || (gu.mode == GU_HOLD && gu.vy < -40.0f) :
+                                           (now / 160u & 1u));
         if (gu.state == GS2_OVER) {
             round_rect(40, 70, 160, 70, 8, G_PAPER);
             text_mid(120, 76, &FONT_B, "SPLASH!", G_RED);
