@@ -529,10 +529,10 @@ static void tiles_draw(uint32_t now)
         }
         keyboard(198, 20, tiles_key_col);
         cv_rect(0, 220, 240, 20, G_LILAC);
-        cv_text(8, 224, &FONT_XS, LEVEL_NAME[sav.tiles.level % 3u], G_INK);
+        cv_text(FOOT_L, FOOT_Y, &FONT_XS, LEVEL_NAME[sav.tiles.level % 3u], G_INK);
         {
             const char *f = tl.state == TP_PLAY ? "PLAY: STOP" : tl.state == TP_DONE ? "PLAY: AGAIN" : "PLAY: START";
-            cv_text(232 - text_w(&FONT_XS, f), 224, &FONT_XS, f, G_INK);
+            cv_text(FOOT_R - text_w(&FONT_XS, f), FOOT_Y, &FONT_XS, f, G_INK);
         }
         band_send(y0);
     }
@@ -544,6 +544,8 @@ static void tiles_frame(uint32_t now)
     if (tl.state == TP_PLAY) {
         if (t > tl.end_ms + 1500) {
             tiles_done(0);
+            /* tickets: half the tiles, times the % played and the tempo; 2 at least */
+            tickets_win(clamp(tl.ntiles * tl.pct * clamp(sav.tiles.tempo, 60, 140) / 20000, 2, 100));
             char t[24] = "";
             sp_pct(t, tl.pct);
             text_cat(t, " PLAYED");

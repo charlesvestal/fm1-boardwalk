@@ -1,4 +1,5 @@
-# Bells, handbells: a pair (1 and 2), both struck on time by the test player: struck well
+# Bells, handbells: a pair (1 and 2), both struck on time by the test player: struck well; stopped with PLAY, no
+# tickets; Plain Hunt Minor rung to its end, 13
 wait 800
 turn SELECT 16
 wait 400
@@ -19,3 +20,14 @@ expect ringing 1
 tap PLAY
 wait 100
 expect score >89
+wait 3000
+expect won 0
+turn K1 -3
+wait 50
+expect method 1
+expect bell 1
+tap PLAY
+wait 40000
+expect ringing 0
+expect score >89
+expect won 13

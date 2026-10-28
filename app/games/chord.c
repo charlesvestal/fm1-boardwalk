@@ -333,11 +333,11 @@ static void chord_draw(uint32_t now)
         keyboard(202, 18, chord_key_col);
         cv_rect(0, 220, 240, 20, G_LILAC);
         if (cc.state == CS_GUESS)
-            cv_text(8, 224, &FONT_XS, "KEY AGAIN: UNDO", G_PLANK2);
+            cv_text(FOOT_L, FOOT_Y, &FONT_XS, "KEY AGAIN: UNDO", G_PLANK2);
         {
             const char *f = cc.state == CS_GUESS ? "PLAY: HEAR AGAIN" : cc.state == CS_OVER ? "PLAY: AGAIN" :
                             cc.state == CS_STAND ? "PLAY: START" : "";
-            cv_text(232 - text_w(&FONT_XS, f), 224, &FONT_XS, f, G_INK);
+            cv_text(FOOT_R - text_w(&FONT_XS, f), FOOT_Y, &FONT_XS, f, G_INK);
         }
         band_send(y0);
     }
@@ -361,6 +361,7 @@ static void chord_frame(uint32_t now)
             }
             int_text(cc.score, t + 6);
             app_say(cc.new_best ? "GAME OVER. NEW BEST" : "GAME OVER", t);
+            tickets_win(cc.score > 2 ? cc.score : 2);   /* tickets: the score (the level already in it), 2 at least */
         } else {
             char t[16] = "CHORD ";
             cc.chord++;

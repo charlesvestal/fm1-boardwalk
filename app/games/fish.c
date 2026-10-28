@@ -189,6 +189,8 @@ static void fish_end(uint32_t now)
     text_cat(t, " FISH");
     app_say(fi.ended_by_time ? (fi.new_best ? "TIME'S UP. NEW BEST" : "TIME'S UP") :
                                (fi.new_best ? "LAST CAST. NEW BEST" : "LAST CAST"), t);
+    tickets_win(clamp((2 + 2 * fi.catches + fi.weight / 10) * (3 + fi.level) / 4, 2, 100));   /* tickets: 2, 2 a
+                                                    * fish and 1 a kilo; x 1.25 by ear, x 1.5 fussy fish */
     fi.fanfare_ms = now + (fi.landed_ms && now - fi.landed_ms < 100u ? 900u : 0u) + 1u;   /* the landing heard first */
 }
 
@@ -797,7 +799,7 @@ static void fish_draw(uint32_t now)
         cv_rect(0, 220, 240, 20, G_LILAC);
         {
             const char *f = fi.state == FS_STAND ? "PLAY: START" : fi.state == FS_OVER ? "PLAY: AGAIN" : "PLAY: STOP";
-            cv_text(232 - text_w(&FONT_XS, f), 224, &FONT_XS, f, G_INK);
+            cv_text(FOOT_R - text_w(&FONT_XS, f), FOOT_Y, &FONT_XS, f, G_INK);
         }
         band_send(y0);
     }

@@ -1,12 +1,12 @@
 # Striker: the meter swings, a key strikes; the test player strikes as it passes the target. Level 1 (bands) played
 # on the mark: a high score and the best kept; a practice strike standing; level 3 (uneven) played a mark high: fewer
-# points, no new best; stopped with PLAY
+# points, no new best; stopped with PLAY. Tickets for each round played out, none for practice or a stopped round
 wait 800
 wait 400
-expect cab 0
+expect cab 1
 tap PLAY
 wait 100
-expect game 1
+expect game 2
 expect striker_state 0
 wait 700
 shot stand.png
@@ -16,6 +16,7 @@ shot practice_strike.png
 wait 1500
 expect striker_state 0
 expect striker_n 0
+expect won 0
 autostriker on
 tap PLAY
 wait 150
@@ -32,6 +33,7 @@ expect striker_exact 10
 expect striker_rung 2
 expect striker_score 110
 expect striker_best 110
+expect won 36
 shot over.png
 autostriker off
 turn K1 2
@@ -45,6 +47,7 @@ expect striker_state 4
 expect striker_exact 0
 expect striker_score 54
 expect striker_best 110
+expect won 63
 shot over_best.png
 autostriker off
 tap PLAY
@@ -56,3 +59,4 @@ expect striker_state 2
 tap PLAY
 wait 100
 expect striker_state 0
+expect won 63

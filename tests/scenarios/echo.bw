@@ -2,10 +2,10 @@
 wait 800
 turn SELECT 10
 wait 400
-expect cab 10
+expect cab 11
 tap PLAY
 wait 100
-expect game 11
+expect game 12
 shot stand.png
 autoecho on
 tap PLAY
@@ -19,7 +19,19 @@ expect echo_lives 3
 expect echo_score >3
 expect echo_pct >89
 expect echo_level >1
+expect won 0
 autoecho off
 wait 20000
 expect echo_state 2
+expect won >5
+expect won <40
 shot over.png
+autoecho on
+tap PLAY
+wait 12000
+expect echo_score >0
+tap PLAY
+wait 4000
+expect echo_state 0
+expect won 8
+expect pay 0

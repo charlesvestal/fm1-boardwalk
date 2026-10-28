@@ -577,7 +577,7 @@ static void teacups_draw(uint32_t now)
         cv_rect(0, 220, 240, 20, G_LILAC);
         {
             const char *f = tc.state == TC_RIDE_ON ? "PLAY: STOP" : tc.state == TC_OVER ? "PLAY: AGAIN" : "PLAY: START";
-            cv_text(232 - text_w(&FONT_XS, f), 224, &FONT_XS, f, G_INK);
+            cv_text(FOOT_R - text_w(&FONT_XS, f), FOOT_Y, &FONT_XS, f, G_INK);
         }
         band_send(y0);
     }
@@ -599,6 +599,10 @@ static void tc_over(uint32_t now)        /* the ride's 60 seconds are up */
     text_cat((t[0] = 0, t), "SCORE ");
     int_text(tc.score, t + 6);
     app_say(tc.new_best ? "RIDE OVER. NEW BEST" : "RIDE OVER", t);
+    {                                    /* tickets: the score / 12, x1 .. x1.5 by level; 2 to 100 */
+        int n = tc.score * (4 + tc.level) / 48;
+        tickets_win(n < 2 ? 2 : n > 100 ? 100 : n);
+    }
     snd_lock();                          /* the waltz's last chord */
     bw_note(60, 90, BW_BASS);
     bw_note(72, 80, BW_CHIME);

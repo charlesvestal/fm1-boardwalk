@@ -363,6 +363,7 @@ static void fortune_step(uint32_t now)   /* the answer's stages, by its clock */
         if (sav.more[SV_FORTUNE].best < 65535u)
             sav.more[SV_FORTUNE].best++;  /* (saved when the tune is over) */
         save_dirty();
+        tickets_win(1);                  /* tickets: one a fortune told */
         fo_said(said);
         app_say(said, "");
     }
@@ -609,11 +610,11 @@ static void fortune_draw(uint32_t now)
         s[0] = 0;
         text_cat(s, "K1 VOICE: ");
         text_cat(s, FO_VOICE[fo_voice()]);
-        cv_text(8, 224, &FONT_XS, s, G_PLANK2);
+        cv_text(FOOT_L, FOOT_Y, &FONT_XS, s, G_PLANK2);
         {
             const char *f = fo.state == FS_CARD ? "PLAY: ASK AGAIN" : fo.state == FS_ASK ? (fo.n ? "PLAY: ASK" : "") :
                                                                                        "LISTEN";
-            cv_text(232 - text_w(&FONT_XS, f), 224, &FONT_XS, f, G_INK);
+            cv_text(FOOT_R - text_w(&FONT_XS, f), FOOT_Y, &FONT_XS, f, G_INK);
         }
         band_send(y0);
     }

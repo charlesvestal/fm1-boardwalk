@@ -241,6 +241,7 @@ static void tune_frame(uint32_t now)
     if (pt.err > TUNE_OUT || pt.err < -TUNE_OUT) {
         pitch_over();
         app_say(pt.err > 0.0f ? "IT DRIFTED SHARP" : "IT DRIFTED FLAT", tune_time_text());
+        tickets_win(clamp(2 + (int)(pt.in_tune_ms / 1500u), 2, 100));   /* tickets: 2, and 1 for each 1.5 s in tune */
     }
 }
 
@@ -439,11 +440,11 @@ static void pitch_draw(uint32_t now)
         }
         cv_rect(0, 220, 240, 20, G_LILAC);
         if (pt.state == PS_STAND || pt.state == PS_OVER)
-            cv_text(232 - text_w(&FONT_XS, "PLAY: START"), 224, &FONT_XS, "PLAY: START", G_INK);
+            cv_text(FOOT_R - text_w(&FONT_XS, "PLAY: START"), FOOT_Y, &FONT_XS, "PLAY: START", G_INK);
         else if (sav.pitch.mode == 0 && pt.state == PS_ASK && pt.played)   /* only when PLAY does it */
-            cv_text(232 - text_w(&FONT_XS, "PLAY: HEAR IT AGAIN"), 224, &FONT_XS, "PLAY: HEAR IT AGAIN", G_INK);
+            cv_text(FOOT_R - text_w(&FONT_XS, "PLAY: HEAR IT AGAIN"), FOOT_Y, &FONT_XS, "PLAY: HEAR IT AGAIN", G_INK);
         else if (sav.pitch.mode == 1)
-            cv_text(232 - text_w(&FONT_XS, "PLAY: STOP"), 224, &FONT_XS, "PLAY: STOP", G_INK);
+            cv_text(FOOT_R - text_w(&FONT_XS, "PLAY: STOP"), FOOT_Y, &FONT_XS, "PLAY: STOP", G_INK);
         band_send(y0);
     }
 }
@@ -471,6 +472,9 @@ static void pitch_frame(uint32_t now)
                 char t[16] = "SCORE ";
                 sp_num(t, pt.score);
                 app_say(pt.new_best ? "GAME OVER. NEW BEST" : "GAME OVER", t);
+                tickets_win(clamp(2 + pt.score * (3 + pt.level) / 4, 2, 100));   /* tickets: 2, and 1 a note named
+                                                                                  * (2.25 on level 6), by the level
+                                                                                  * it ended on */
             } else {
                 ear_ask(now);
             }

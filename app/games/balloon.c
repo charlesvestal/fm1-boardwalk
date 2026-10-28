@@ -129,6 +129,8 @@ static void bln_end(void)
         bln.from_y = 80.0f;
         bln.confetti_ms = bln.phase_ms;
     }
+    tickets_win(clamp(bln.score * (3 + bln.level) / 12, 2, 100));   /* tickets: a third of the points, x1.25 on
+                                                                     * level 2, x1.5 on 3; 2 at least */
     int_text(bln.score, t + 6);
     app_say(bln.new_best ? "ROUND OVER. NEW BEST" : "ROUND OVER", t);
 }
@@ -613,9 +615,9 @@ static void balloon_draw(uint32_t now)
         cv_rect(0, 220, 240, 20, G_LILAC);
         {
             const char *f = bln.state == BLN_PLAY ? "PLAY: STOP" : bln.state == BLN_OVER ? "PLAY: AGAIN" : "PLAY: START";
-            cv_text(232 - text_w(&FONT_XS, f), 224, &FONT_XS, f, G_INK);
+            cv_text(FOOT_R - text_w(&FONT_XS, f), FOOT_Y, &FONT_XS, f, G_INK);
             if (bln.state == BLN_STAND || (bln.state == BLN_PLAY && bln.phase == BLN_WAIT))
-                cv_text(8, 224, &FONT_XS, "PUMP, DO NOT POP", G_PLANK2);
+                cv_text(FOOT_L, FOOT_Y, &FONT_XS, "PUMP, DO NOT POP", G_PLANK2);
         }
         band_send(y0);
     }

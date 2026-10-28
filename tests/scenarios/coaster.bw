@@ -1,13 +1,14 @@
 # Coaster: a ride played by the test player (each note as the train reaches it) gets to the station with every run
 # clean, the best kept; a ride with no notes stalls on the first climb and rolls back; level 3 played whole; mashing
-# every key gets nowhere
+# every key gets nowhere. Tickets: 28 for the clean level 1 ride, 3 for the stall, 91 for level 3 clean, the pity 2
+# for the mashing; a ride stopped with PLAY pays nothing
 wait 800
 turn SELECT 15
 wait 400
-expect cab 15
+expect cab 16
 tap PLAY
 wait 100
-expect game 16
+expect game 17
 expect coaster_state 0
 expect coaster_level 1
 shot stand.png
@@ -29,6 +30,7 @@ expect coaster_wrongs 0
 expect coaster_misses 0
 expect coaster_dist >300
 expect coaster_best >300
+expect won 28
 shot station.png
 autocoaster off
 tap PLAY
@@ -40,6 +42,7 @@ expect coaster_state 3
 expect coaster_end 1
 expect coaster_hits 0
 expect coaster_dist <250
+expect won 31
 expect coaster_best >300
 shot stalled.png
 turn K1 2
@@ -55,6 +58,7 @@ expect coaster_end 2
 expect coaster_runs 10
 expect coaster_clean 10
 expect coaster_dist >800
+expect won 122
 autocoaster off
 mash on
 tap PLAY
@@ -63,3 +67,12 @@ mash off
 expect coaster_state 3
 expect coaster_end 1
 expect coaster_hits <3
+expect won 124
+tap PLAY
+wait 3000
+expect coaster_state 1
+tap PLAY
+wait 4000
+expect coaster_state 0
+expect won 124
+expect pay 0

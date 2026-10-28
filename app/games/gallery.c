@@ -299,7 +299,7 @@ static void gallery_draw(uint32_t now)
         cv_rect(0, 220, 240, 20, G_LILAC);
         {
             const char *f = gl.state == GS_PLAY ? "PLAY: STOP" : gl.state == GS_OVER ? "PLAY: AGAIN" : "PLAY: START";
-            cv_text(232 - text_w(&FONT_XS, f), 224, &FONT_XS, f, G_INK);
+            cv_text(FOOT_R - text_w(&FONT_XS, f), FOOT_Y, &FONT_XS, f, G_INK);
         }
         band_send(y0);
     }
@@ -364,6 +364,11 @@ static void gallery_frame(uint32_t now)
             int_text(gl.score, t);
             text_cat(t, " OF 20");
             app_say(gl.new_best ? "ROUND OVER. NEW BEST" : "ROUND OVER", t);
+            {                            /* tickets: hits + hits squared / 20, x1 .. x1.75 by level; 2 at least */
+                int lv = clamp(sav.gallery.level, 1, GL_LEVELS);
+                int n = (gl.score + gl.score * gl.score / 20) * (3 + lv) / 4;
+                tickets_win(n > 2 ? n : 2);
+            }
         }
     }
     gallery_draw(now);

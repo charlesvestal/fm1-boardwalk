@@ -1,8 +1,9 @@
-# Whack-a-mole: every mole whacked over a round of 45 s: a score, no stray whacks; then over
+# Whack-a-mole: every mole whacked over a round of 45 s: a score, no stray whacks; then over, and its tickets.
+# A round stopped with PLAY pays none
 wait 800
 turn SELECT 1
 wait 400
-expect cab 1
+expect cab 2
 tap PLAY
 wait 100
 shot stand.png
@@ -14,4 +15,12 @@ expect whack_score >10
 wait 37000
 expect whack_state 2
 expect whack_stray 0
+expect won 32
 shot over.png
+tap PLAY
+wait 5000
+expect whack_state 1
+tap PLAY
+wait 100
+expect whack_state 0
+expect won 32

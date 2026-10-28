@@ -2,7 +2,7 @@
 wait 800
 turn SELECT 5
 wait 400
-expect cab 5
+expect cab 6
 tap PLAY
 wait 100
 shot stand.png
@@ -13,6 +13,8 @@ shot playing.png
 wait 60000
 expect gallery_state 2
 expect gallery_score 20
+# twenty of twenty on level 1: 20 + 400 / 20 tickets
+expect won 40
 shot over.png
 autoshoot off
 turn K1 3
@@ -22,4 +24,17 @@ tap PLAY
 wait 70000
 expect gallery_state 2
 expect gallery_score <8
+# mashing: the pity tickets
+expect won 42
 mash off
+# a round stopped with PLAY pays nothing
+autoshoot on
+tap PLAY
+wait 8000
+expect gallery_state 1
+tap PLAY
+wait 3000
+expect gallery_state 0
+expect won 42
+expect pay 0
+autoshoot off

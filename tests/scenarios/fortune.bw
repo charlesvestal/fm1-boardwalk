@@ -3,11 +3,11 @@
 wait 800
 turn SELECT 7
 wait 400
-expect cab 7
+expect cab 8
 shot boardwalk.png
 tap PLAY
 wait 100
-expect game 8
+expect game 9
 expect fortune_state 0
 shot empty.png
 tap PLAY
@@ -35,6 +35,8 @@ shot sliding.png
 wait 2500
 expect fortune_state 3
 expect fortune_told 1
+# a ticket a fortune
+expect won 1
 expect fortune_lucky 64
 expect fortune_maxlines <4
 fortune_mark
@@ -54,6 +56,7 @@ wait 8000
 expect fortune_state 3
 expect fortune_same 1
 expect fortune_told 2
+expect won 2
 # a key on the card starts a new question; eight notes at most
 tapkey 0
 expect fortune_state 0
@@ -75,6 +78,7 @@ tap PLAY
 wait 9000
 expect fortune_state 3
 expect fortune_told 3
+expect won 3
 shot card8.png
 turn K1 1
 expect fortune_voice 2
@@ -83,6 +87,7 @@ tapkey 20
 tap PLAY
 wait 5000
 expect fortune_state 3
+expect won 4
 tap HOME
 wait 100
 expect game 0

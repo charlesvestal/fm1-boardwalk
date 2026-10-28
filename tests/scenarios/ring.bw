@@ -1,10 +1,11 @@
-# Bells: listening to Plain Bob Minor, then ringing bell 2 on the keys, on time and then not at all; the best kept
+# Bells: listening to Plain Bob Minor, then ringing bell 2 on the keys, on time and then not at all; the best kept;
+# stopped with PLAY, listening or ringing, no tickets
 wait 800
 turn SELECT 16
 wait 400
 tap PLAY
 wait 100
-expect game 17
+expect game 18
 expect method 4
 expect bell 0
 tap PLAY
@@ -17,6 +18,7 @@ wavstop
 tap PLAY
 wait 200
 expect ringing 0
+expect won 0
 turn K2 2
 wait 50
 expect bell 2
@@ -30,3 +32,4 @@ wait 200
 expect ringing 0
 expect score 0
 shot stood.png
+expect won 0

@@ -249,7 +249,7 @@ static void whack_draw(uint32_t now)
         cv_rect(0, 220, 240, 20, G_LILAC);
         {
             const char *f = wm.state == WS_PLAY ? "PLAY: STOP" : wm.state == WS_OVER ? "PLAY: AGAIN" : "PLAY: START";
-            cv_text(232 - text_w(&FONT_XS, f), 224, &FONT_XS, f, G_INK);
+            cv_text(FOOT_R - text_w(&FONT_XS, f), FOOT_Y, &FONT_XS, f, G_INK);
         }
         band_send(y0);
     }
@@ -265,6 +265,8 @@ static void whack_frame(uint32_t now)
             sav.whack.best = (uint16_t)wm.score;
             save_dirty();
         }
+        /* tickets: 0.4 a point on level 1, up to 0.6 on 5; 2 at least */
+        tickets_win(clamp(wm.score * (7 + clamp(sav.whack.level, 1, WM_LEVELS)) / 20, 2, 100));
         text_cat((t[0] = 0, t), "SCORE ");
         int_text(wm.score, t + 6);
         app_say(wm.new_best ? "TIME'S UP. NEW BEST" : "TIME'S UP", t);

@@ -3,10 +3,10 @@
 wait 800
 turn SELECT 6
 wait 400
-expect cab 6
+expect cab 7
 tap PLAY
 wait 100
-expect game 7
+expect game 8
 expect teacups_state 0
 turn K1 1
 expect teacups_level 2
@@ -31,6 +31,8 @@ expect teacups_peak 100
 expect teacups_top >400
 expect teacups_score >500
 expect teacups_best >500
+# a ride at the top: its score / 12, x1.25 on level 2
+expect won 61
 shot over.png
 autoteacups offbeat
 tap PLAY
@@ -43,6 +45,8 @@ shot wobble.png
 wait 42000
 expect teacups_state 2
 expect teacups_score <10
+# a ride wobbled through: the pity tickets
+expect won 63
 expect teacups_best >500
 shot over_low.png
 autoteacups late
@@ -52,6 +56,7 @@ expect teacups_state 2
 expect teacups_perfect 0
 expect teacups_hits >130
 expect teacups_score >100
+expect won 106
 expect teacups_best >500
 autoteacups off
 turn K1 -1
@@ -65,3 +70,7 @@ expect teacups_speed >85
 shot level1.png
 tap PLAY
 expect teacups_state 0
+# a ride stopped with PLAY pays nothing
+wait 3000
+expect won 106
+expect pay 0

@@ -5,7 +5,7 @@ turn SELECT 12
 wait 400
 tap PLAY
 wait 100
-expect game 13
+expect game 14
 shot stand.png
 tap PLAY
 wait 1800
@@ -38,4 +38,5 @@ answer wrong
 wait 2500
 expect pitch_state 3
 expect best_ear 5
+expect won 8
 shot over.png

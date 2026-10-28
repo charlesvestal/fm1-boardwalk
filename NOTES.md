@@ -19,6 +19,13 @@ boardwalk menu runs, Pitch and Tiles are cabinets with attract screens but no ga
   Keys are read by the 1 kHz tick (exact times; Bells, Tiles and Echo answer in the tick itself); the black keys
   show what comes next (Bells: your place; Tiles: the next lane). The boardwalk plays each
   cabinet's attract tune quietly over the sea, fading as the row moves; K1 the sea, K2 the tunes. Gulls call.
+- Tickets and prizes (2026-10-28): every game pays tickets at a finished round's end (tickets_win; a stopped round
+  pays nothing; at least 2, at most 100), counted up on a ticket at the top right; on leaving, the cabinet feeds them
+  out of its slot as a strip to the boards, torn off into the count at the boardwalk's top left. The PRIZES counter
+  stands first in the row (a new save starts at Striker beside it): 16 prizes on the white keys, 10 to 5000 tickets
+  (sticker to giant teddy); owned ones sit on the rail; NIGHT SKY and FIREWORKS change the boardwalk (PLAY: on/off).
+  A typical round pays ~15-25, a very good one 40-60+: ~20 tickets a minute played casually, ~40 played well; all
+  sixteen cost 12,560 (~10 h casual, ~5 h good).
 - The row's order (2026-10-28): Striker, Moles, Balloons, Tiles, Gull, Ducks, Teacups, Fortune, Parrot, Bumpers,
   Echo, Claw, Pitch, Fishing, Chord Code, Coaster, Bells: two quick, obvious ones first, then the kinds taking turns
   (timing, reflex, ear, rhythm, a toy to rest on), the deeper ones further along, the bell tower at the pier's end.
@@ -56,6 +63,8 @@ every other row).
 - **Screen:** six tower bells hang across the top in bell order, mouth-up at rest, swinging a full circle as they strike (one way at handstroke, back at backstroke; the header shows which). Countdown pips under your bell, then "NOW". The blue line scrolls underneath.
 - **Sound:** modal FM / additive bells with the classic partials (hum, prime, tierce, quint, nominal), long decays.
 - Check the licence of the Central Council of Church Bell Ringers' method library before shipping more than a curated handful.
+- Tickets: a touch rung to its end pays rows x bells x (striking - 30)% / 8, a pair half as many again; conducting,
+  rows x bells / 16 when brought round at the length, 2 if not; 2 at least, 100 at most; listening or stopped, none.
 
 ## Design §1: Architecture (built 2026-10-28, on fm1-base)
 
@@ -109,6 +118,8 @@ Bells as built: K1 method (ten: Plain Hunt, Plain Bob and Grandsire Doubles; Pla
   K1 turns it 2 cents a detent, K2 half a cent. Within 4 cents counts as in tune; past 25 cents it is over. The
   screen shows two forks and the time in tune, never the error. Best: tenths of a second in tune.
 - K1 the game, K2 EAR's starting level.
+- Tickets: EAR 2 + the notes named x (3 + the level it ended on) / 4; TUNE 2 + 1 for each 1.5 s in tune (only
+  when it drifts out, not stopped with PLAY); at most 100.
 
 ## Tiles (built 2026-10-28)
 
@@ -119,6 +130,7 @@ Bells as built: K1 method (ten: Plain Hunt, Plain Bob and Grandsire Doubles; Pla
 - Windows: 60 ms perfect, 150 ms good; a press with no tile near is a clunk and breaks the combo. The tile's first
   note sounds when hit (early too); its other notes at their times. The bass and a count-in from the tick.
 - K1 song, K2 level, K3 tempo (60–140 %). Best: % of notes played, per song.
+- Tickets: half the song's tiles, times the % played and the tempo, at least 2 (a song played through).
 
 ## Echo (built 2026-10-28)
 
@@ -127,6 +139,7 @@ Bells as built: K1 method (ten: Plain Hunt, Plain Bob and Grandsire Doubles; Pla
   150 ms 35 %; an extra hit -50 %. 70 % passes; four passes go up a level (quarters, eighths, off the beat,
   sixteenths, anything); three misses and it is over. Calls written out in `games/echo.c` (six a level).
 - K1 tempo (70-140 bpm), K2 the level to start at. Best: answers passed.
+- Tickets: 2 + the answers passed x (3 + the level it ended on) / 4, at most 100.
 
 ## Bells' other ways (built 2026-10-28)
 
@@ -142,16 +155,17 @@ Bells as built: K1 method (ten: Plain Hunt, Plain Bob and Grandsire Doubles; Pla
 
 - **Chord Code**: a hidden chord (L1 major / minor root position C4-B4, L2 any triad any inversion, L3 sevenths);
   pick its notes, judged when you have picked as many: exact teal, right note other octave orange. 6 guesses, 5
-  chords; score 7 - guesses each. PLAY hears it again.
+  chords; score 7 - guesses each. PLAY hears it again. Tickets: the score (the level already in it), 2 at least.
 - **Parrot** (inspired by Simon; the name is not ours to use): E A C# E on the four lanes, pads labelled with their
   keys; one more each round, a little faster; every five rounds the tones change key; a wrong pad or 4 s idle ends
-  it, said why. K1 speed.
+  it, said why. K1 speed. Tickets: the score + its square / 6, x1 / 1.25 / 1.5 by speed (2 to 100).
 - **Moles** (whack-a-mole): moles on the 11 pentatonic white keys, each a step or two from the last, over a bass
   line (a good run is a tune), on a 112 bpm groove's eighths; gold = 3; a stray whack -1; faster as the 45 s run out.
-  K1 level.
+  K1 level. Tickets: 0.4 a point on level 1, up to 0.6 on level 5, at least 2.
 - **Ducks** (a shooting gallery): ducks on three rows quack their note as they come into view (by ear, again
   midway); press its key to shoot; a shot at nothing plays your note as a dull click and jams the gun 1 s (JAMMED!).
-  L1-2 names on the ducks, L3-4 by ear; the keys never light. 20 ducks.
+  L1-2 names on the ducks, L3-4 by ear; the keys never light. 20 ducks. Tickets: hits + hits² / 20, x1 / 1.25 / 1.5 /
+  1.75 by level (2 at least).
 
 ## Gull (built 2026-10-28)
 
@@ -160,52 +174,60 @@ Bells as built: K1 method (ten: Plain Hunt, Plain Bob and Grandsire Doubles; Pla
   gap is a white key's note, chimed as its posts come on; level 1 names it on the post, level 2 by ear. Posts 128 px
   apart, faster by 1.5 px/s a post; FLAP's gaps narrow as the score climbs. The keys never light.
 - The save grew (sav.gull after rsv); a save from before it loads (offsetof(save_t, gull) bytes), the rest default.
+- Tickets: two for every three posts (x1.25 in SING by ear), at least 2.
 
 ## Claw (built 2026-10-28)
 
 - The case sits over the keys (a column a key, key_x): a key moves the claw over it (a soft whirr at its pitch), PLAY
   drops. Toys each sing a note (hummed as the claw comes over one); the machine wishes for one (sparkle + its note,
-  again every 6 s): 10 tickets for it, 3 for another; big toys are triads centred on their middle (third), x2.
+  again every 6 s): 5 tickets for it, 2 for another; big toys are triads centred on their middle (third), x2.
   Grip: dead on 92 % (big 75), a key off 45 % (25); a slip drops it on the way up. 10 coins. K1 level: 1 notes shown
   (on the toys and the wish), 2 by ear, 3 chords. The key under the claw glows (where it is, never where to go).
 - Knobs that choose a game's way are MODE everywhere (Pitch, Gull: was GAME; Bells' K4).
+- Tickets: the machine's tickets for the round (all ten wishes on level 1: 50), at least 2, at most 100.
 
 ## Striker (built 2026-10-28)
 - High Striker as a timing game: a meter swings up and down the board; any key strikes, the puck flies to where the
   meter was at that ms. The machine asks for a mark: on it 10, one off 6, two off 3; the bell asked and rung +5. Ten
   strikes. K1: 1 TWO MARKS (2.8 s swing), 2 ONE MARK (1.8 s), 3 UNEVEN (speed changes every half swing). Levels 1-2
   ask each target twice. Standing, a key is a practice strike. Best: points (sav.more[SV_STRIKER]).
+- Tickets: a third of the points (x1.25 on level 2, x1.5 on 3), at least 2; practice strikes none.
 
 ## Balloons (built 2026-10-28)
 - Hold a key to pump (the lit C4-C5 pad), let go to tie it off on the dashed ring: 10 / 6 / 3 / 1 within 1.5 / 3 / 5
   / 8 px; a hidden pop point 7-16 px past the ring (4-9 on L3), a wobble and squeaks as it nears. The ring's note
   plays first; the stretch tone reaches it at the ring. Size from the key's held time to the ms. K1: STEADY,
   SURGING, TIGHT. 10 balloons; best points (sav.more[SV_BALLOON]).
+- Tickets: a third of the points (x1.25 on level 2, x1.5 on 3), at least 2.
 
 ## Fishing (built 2026-10-28)
 - The pond over the keys; each fish a note, humming as it passes under the float. A key casts; a fish nibbles, the
   float dips with its note: press that note's key within 0.9 / 0.7 / 0.45 s. Reel by tapping with the line's tug
   (from the tick); too fast tightens the line (SNAP), no tap lets it run; any knob reels slowly. 10 casts or 90 s;
   score the weight (sav.more[SV_FISH]). K1: NOTES SHOWN, BY EAR, FUSSY FISH.
+- Tickets: (2 + 2 a fish + 1 a kilo) x 1 / 1.25 / 1.5 by the level, at most 100.
 
 ## Fortune (built 2026-10-28)
 - A toy: Barnaby Brass, a brass automaton seer (gear crown, turned-up moustache; an original character, no
   caricature), answers a question of up to 8 notes (PLAY): the ball swirls, then your phrase echoed, turned upside
   down and brought home, a bass under it; a card slides out: one of 32 fortunes by a hash of the notes (the same
-  question, the same card) and a lucky note. K1 his voice (chime, piano, bells); best = fortunes told.
+  question, the same card) and a lucky note. K1 his voice (chime, piano, bells); best = fortunes told. Tickets: one a
+  fortune told.
 
 ## Teacups (built 2026-10-28)
 - A 60 s ride to a fairground waltz in C (from the tick). Any key on a beat to tap spins the cup (perfect ±40 ms,
   good ±90); off the beat it wobbles; a beat left out costs; drag 1.5 + 6 %/s. Top speed (85+): a countermelody, the
   bulbs and keys chase. Score = tenths at the top + the peak. Any knob spins it a little (to 70). K1: ONE A BAR, EVERY
   BEAT, FAST WALTZ. The waltz quickens every four bars (a 50th off the beat each, ten times: a fifth
-  faster), FASTER! shown for the bar. TC_LAG to set on the FM-1.
+  faster), FASTER! shown for the bar. TC_LAG to set on the FM-1. Tickets: the score / 12, x1 / 1.25 / 1.5 by level
+  (2 to 100).
 
 ## Bumpers (built 2026-10-28)
 - The dodgems from above: your car drives on; left white keys steer left, right ones right, sharper towards the
   ends; black keys honk; SELECT steers too. The other cars sing a chord's tones; a bump scores its place in a rising
   run, root-third-fifth within 2 s is CHORD +5; bumped from behind -1. 60 s. K1: SLOW, BUSY (one chases you), TRICKY
-  (they swerve). Best: points (sav.more[SV_BUMPERS]).
+  (they swerve). Best: points (sav.more[SV_BUMPERS]). Tickets: two thirds of the points, x1 / 1.33 / 1.67 by level
+  (2 to 100).
 
 ## Coaster (built 2026-10-28)
 - The track is the melody: rail height = pitch, each run's notes named on their markers; play each as the front car
@@ -216,6 +238,8 @@ Bells as built: K1 method (ten: Plain Hunt, Plain Bob and Grandsire Doubles; Pla
   of its speed, so right notes in a row build speed (to 1.7x in a run, easing back to 1.3x); a wrong note brakes
   little; the right note out of time sounds as itself (it was the dull click, heard as "plucks"); the
   next note's dot lights orange while it is time to play it. Played to nothing, level 1 still stalls (~10 s). The keys never light.
+- Tickets: one every 25 metres and one a clean run, x1.25 on level 2, x1.5 on 3; 2 at least, 100 at most (a clean
+  level 1 ride 28, level 3 91).
 
 ## More games still
 

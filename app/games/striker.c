@@ -169,6 +169,8 @@ static void striker_end(uint32_t now)
         sav.more[SV_STRIKER].best = (uint16_t)sk.score;
         save_dirty();
     }
+    tickets_win(clamp(sk.score * (3 + sk.level) / 12, 2, 100));   /* tickets: a third of the points, x1.25 on level
+                                                                   * 2, x1.5 on 3; 2 at least */
     snd_lock();                          /* the fanfare: a little rising call */
     bw_note(72, 90, BW_CHIME);
     bw_note(79, 85, BW_CHIME);
@@ -591,7 +593,7 @@ static void striker_draw(uint32_t now)
         cv_rect(0, 220, 240, 20, G_LILAC);
         {
             const char *f = sk_standing() ? "PLAY: START" : sk.state == SK_OVER ? "PLAY: AGAIN" : "PLAY: STOP";
-            cv_text(232 - text_w(&FONT_XS, f), 224, &FONT_XS, f, G_INK);
+            cv_text(FOOT_R - text_w(&FONT_XS, f), FOOT_Y, &FONT_XS, f, G_INK);
         }
         band_send(y0);
     }

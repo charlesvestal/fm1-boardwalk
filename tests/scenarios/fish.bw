@@ -4,10 +4,10 @@
 wait 800
 turn SELECT 13
 wait 400
-expect cab 13
+expect cab 14
 tap PLAY
 wait 100
-expect game 14
+expect game 15
 expect fish_state 0
 shot stand.png
 tap PLAY
@@ -28,6 +28,7 @@ expect fish_snaps 0
 expect fish_lost 0
 expect fish_weight >20
 expect fish_best >20
+expect won >15
 shot over.png
 autofish frantic
 tap PLAY
@@ -36,6 +37,7 @@ expect fish_snaps >0
 expect fish_catches 0
 tap PLAY
 expect fish_state 0
+expect won 40
 shot stand_best.png
 autofish slow
 tap PLAY
@@ -62,5 +64,6 @@ wait 20000
 expect fish_catches >1
 tap PLAY
 expect fish_state 0
+expect won 40
 turn K1 -1
 expect fish_level 1

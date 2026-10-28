@@ -3,10 +3,10 @@
 wait 800
 turn SELECT 9
 wait 400
-expect cab 9
+expect cab 10
 tap PLAY
 wait 100
-expect game 10
+expect game 11
 expect bumpers_state 0
 shot stand.png
 autobumpers on
@@ -24,6 +24,8 @@ wait 22500
 expect bumpers_state 2
 expect bumpers_score >10
 expect bumpers_best >10
+# two thirds of the score, on level 1
+expect won 28
 shot over.png
 autobumpers off
 turn K1 2
@@ -43,3 +45,7 @@ tap PLAY
 wait 100
 expect bumpers_state 0
 shot stopped.png
+# a session stopped with PLAY pays nothing
+wait 3000
+expect won 28
+expect pay 0

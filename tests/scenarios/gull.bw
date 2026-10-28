@@ -1,12 +1,13 @@
 # Gull: flown well (the test player), FLAP passes posts; let go, it falls in the sea. SING: the gap's key held passes
-# posts; let go, it sinks into the sea. HOLD: held below the gap (the test player), it passes posts
+# posts; let go, it sinks into the sea. HOLD: held below the gap (the test player), it passes posts. Each splash pays
+# tickets; a flight stopped with PLAY pays none
 wait 800
 turn SELECT 4
 wait 400
-expect cab 4
+expect cab 5
 tap PLAY
 wait 100
-expect game 5
+expect game 6
 shot stand.png
 autogull on
 tap PLAY
@@ -17,6 +18,7 @@ shot flap.png
 autogull off
 wait 4000
 expect gull_state 2
+expect won 4
 shot splash.png
 turn K1 1
 wait 50
@@ -31,6 +33,7 @@ autogull off
 key 0 up
 wait 8000
 expect gull_state 2
+expect won 8
 turn K1 1
 wait 50
 shot press_stand.png
@@ -44,3 +47,14 @@ autogull off
 key 9 up
 wait 8000
 expect gull_state 2
+expect won 12
+autogull on
+tap PLAY
+wait 6000
+expect gull_state 1
+tap PLAY
+wait 100
+expect gull_state 0
+autogull off
+key 9 up
+expect won 12

@@ -11,13 +11,25 @@
 #define CAB_BASE 228                     /* the row's feet */
 #define SMALL 184                        /* a neighbour's size, /256 */
 
+#define N_SKY0 RGB(34, 32, 76)           /* the night sky (a prize): deep blue, to violet at the sea */
+#define N_SKY1 RGB(92, 64, 128)
 static void sky(uint32_t ms)
 {
     int32_t y, i;
-    for (y = 0; y < 118; y++)            /* peach, to sand at 60 %, to lilac */
-        cv_rect(0, y, 240, 1, y < 86 ? mix(G_SKY0, G_SKY1, y * 256 / 86) : mix(G_SKY1, G_SKY2, (y - 86) * 256 / 58));
-    fill_circle(201, 29, 15, mix(G_SUN, G_SKY0, 140));   /* the sun's glow, then the sun */
-    fill_circle(201, 29, 13, G_SUN);
+    if (sav.prize.night) {
+        for (y = 0; y < 118; y++)
+            cv_rect(0, y, 240, 1, mix(N_SKY0, N_SKY1, y * 256 / 118));
+        for (i = 0; i < 22; i++)         /* stars, a few twinkling */
+            cv_pset((i * 97 + 13) % 240, 18 + (i * 53) % 70,
+                    (ms / 400u + (uint32_t)i) % 7u ? C_WHITE : mix(C_WHITE, N_SKY0, 160));
+        fill_circle(201, 29, 11, G_BULB);   /* a crescent moon */
+        fill_circle(206, 26, 10, mix(N_SKY0, N_SKY1, 26 * 256 / 118));
+    } else {
+        for (y = 0; y < 118; y++)        /* peach, to sand at 60 %, to lilac */
+            cv_rect(0, y, 240, 1, y < 86 ? mix(G_SKY0, G_SKY1, y * 256 / 86) : mix(G_SKY1, G_SKY2, (y - 86) * 256 / 58));
+        fill_circle(201, 29, 15, mix(G_SUN, G_SKY0, 140));   /* the sun's glow, then the sun */
+        fill_circle(201, 29, 13, G_SUN);
+    }
     for (i = 0; i < 2; i++) {            /* gulls, crossing every 14 s */
         int32_t x = 250 - (int32_t)((ms / 50u + (uint32_t)i * 140u) % 280u), gy = 30 + i * 9, f = (int32_t)(ms / 300u + (uint32_t)i) & 1;
         cv_line(x - 4, gy - f, x, gy + 1, G_GULL);
@@ -62,8 +74,77 @@ static void bulbs(uint32_t ms)
     for (i = 0; i < 14; i++) {
         int32_t x = 8 + i * 16 + 2, lit = ((ms / 800u + (uint32_t)i) & 1u) != 0;
         cv_line(x - 8, 11 + (i & 1), x + 8, 11 + !(i & 1), mix(G_WHEEL, G_SKY0, 120));
-        fill_circle(x, 13, 2, lit ? G_BULB : mix(G_BULB, G_SKY0, 150));
+        fill_circle(x, 13, 2, lit || sav.prize.night ? G_BULB : mix(G_BULB, G_SKY0, 150));
     }
+}
+
+/* fireworks over the sea (a prize): a burst every 3.5 s somewhere over it, opening and fading, a soft boom */
+static uint32_t fw_last;
+static void fireworks(uint32_t ms)
+{
+    static const uint16_t C[4] = {G_RED, G_SUN, G_TEAL, RGB(200, 150, 255)};
+    uint32_t n = ms / 3500u, t = ms % 3500u, h = n * 2654435761u;
+    int32_t cx = 40 + (int32_t)(h >> 8) % 160, cy = 30 + (int32_t)(h >> 16) % 50, r, i;
+    if (n != fw_last) {
+        fw_last = n;
+        snd_lock();
+        bw_drum(BW_KICK, 34);
+        bw_drum(BW_HAT, 18);
+        snd_unlock();
+    }
+    if (t >= 1300u)
+        return;
+    r = 4 + (int32_t)t * 26 / 1300;
+    for (i = 0; i < 12; i++) {
+        float a = (float)i * 0.5236f;
+        int32_t x = cx + (int32_t)(fm_cosf(a) * (float)r), y = cy + (int32_t)(fm_sinf(a) * (float)r) + (int32_t)(t / 160u);
+        if (t < 900u || (i + (int32_t)(t / 60u)) & 1)
+            cv_rect(x, y, 2, 2, C[(n + (uint32_t)(i & 1)) % 4u]);
+    }
+}
+
+static void rail_prizes(void)            /* the prizes won, sitting on the rail */
+{
+    int i, x = 8;
+    for (i = 0; i < PZ_N; i++) {
+        if (!(sav.prize.owned >> i & 1u) || i == PZ_NIGHT || i == PZ_FIREWORKS)
+            continue;
+        prize_icon(i, x, i == PZ_N - 1 ? 128 : 134, i == PZ_N - 1 ? 3 : 2);
+        x += i == PZ_N - 1 ? 20 : 14;
+    }
+}
+
+/* the tickets won, out of the cabinet's slot under its panel: a strip down to the boards, folding into a pile, then
+ * torn off and flown to the count */
+static void spit_draw(int32_t pos, uint32_t ms)
+{
+    int32_t d = spit.cab * 256 - pos, cx = 120 + d * CAB_STEP / 256, top = CAB_BASE - CAB_H + 110, i, segs, hang;
+    char s[12];
+    if (!spit.n || (int32_t)(ms - spit.at) < 0 || d <= -512 || d >= 512)
+        return;
+    s[0] = '+';
+    s[1] = 0;
+    int_text(spit.fed, s + 1);
+    if (spit.done && ms - spit.done > SPIT_HOLD) {   /* flying to the count */
+        int32_t t = (int32_t)(ms - spit.done - SPIT_HOLD), x = cx - 14 + (4 - (cx - 14)) * t / (int32_t)SPIT_FLY,
+                y = 200 + (20 - 200) * t / (int32_t)SPIT_FLY;
+        ticket_shape(x, y, text_w(&FONT_XS, s) + 24, 15, G_ORANGE);
+        cv_text(x + 16, y, &FONT_XS, s, G_PAPER);
+        return;
+    }
+    cv_rect(cx - 9, top - 2, 18, 3, G_SCREEN);   /* the slot */
+    segs = spit.fed / (spit.n / 40 + 1);
+    hang = (CAB_BASE - 4 - top) / 6;
+    for (i = 0; i < segs && i < hang; i++) {   /* down to the boards */
+        cv_rect(cx - 6, top + 1 + i * 6, 12, 5, G_ORANGE);
+        cv_rect(cx - 6, top + 6 + i * 6, 12, 1, mix(G_ORANGE, G_INK, 110));
+    }
+    for (i = hang; i < segs; i++) {      /* and folding up into a pile beside */
+        int32_t k = i - hang;
+        cv_rect(cx + 7 + (k & 1) * 2, CAB_BASE - 3 - k * 2, 14, 2, (k & 1) ? G_ORANGE : mix(G_ORANGE, G_INK, 60));
+    }
+    round_rect(cx + 10, top - 4, text_w(&FONT_B, s) + 8, 18, 5, G_PAPER);
+    cv_text(cx + 14, top - 3, &FONT_B, s, G_ORANGE);
 }
 
 static void deck(void)
@@ -119,8 +200,18 @@ static void scene_draw(const game_t *const *games, int n, int32_t pos, uint32_t 
         sky(ms);
         bulbs(ms);
         wheel(ms);
+        if (sav.prize.fireworks)
+            fireworks(ms);
         sea(ms);
         deck();
+        rail_prizes();
+        if (sav.prize.won) {             /* the tickets to spend */
+            char s[12];
+            s[0] = 0;
+            int_text((int32_t)sav.prize.tickets - spit.n, s);   /* (a strip still out: not yet counted) */
+            ticket_shape(4, 20, text_w(&FONT_XS, s) + 24, 15, G_ORANGE);
+            cv_text(20, 20, &FONT_XS, s, G_PAPER);
+        }
         for (i = 0; i < n; i++) {        /* the far ones first, the one in front last */
             int32_t d = i * 256 - pos, ad = d < 0 ? -d : d;
             if (ad >= 256 * 2)
@@ -134,12 +225,13 @@ static void scene_draw(const game_t *const *games, int n, int32_t pos, uint32_t 
             if (d > -128 && d < 128)
                 cabinet(games[i], 120 + d * CAB_STEP / 256, 256 - (d < 0 ? -d : d) * (256 - SMALL) / 256, 0, ms);
         }
+        spit_draw(pos, ms);
         {
             int at = (pos + 128) / 256;  /* the walk's ends: their way dimmed */
-            cv_text(6, 229, &FONT_XS, "< OCT-", at > 0 ? G_INK : G_PLANK2);
-            cv_text(234 - text_w(&FONT_XS, "OCT+ >"), 229, &FONT_XS, "OCT+ >", at < n - 1 ? G_INK : G_PLANK2);
+            cv_text(FOOT_L, FOOT_Y, &FONT_XS, "< OCT-", at > 0 ? G_INK : G_PLANK2);
+            cv_text(FOOT_R - text_w(&FONT_XS, "OCT+ >"), FOOT_Y, &FONT_XS, "OCT+ >", at < n - 1 ? G_INK : G_PLANK2);
             /* a knob just turned (the sea, the tunes), or what the one in front is */
-            text_mid(120, 229, &FONT_XS, hud ? hud : games[clamp(at, 0, n - 1)]->blurb, G_INK);
+            text_mid(120, FOOT_Y, &FONT_XS, hud ? hud : games[clamp(at, 0, n - 1)]->blurb, G_INK);
         }
         band_send(y0);
     }

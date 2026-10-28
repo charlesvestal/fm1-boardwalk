@@ -31,6 +31,10 @@
 #define G_MUTE RGB(200, 174, 146)
 
 #define BAND_H 120
+/* the footer's words: in from the screen's rounded corners, up off its edge */
+#define FOOT_L 14
+#define FOOT_R 226
+#define FOOT_Y 222
 
 static void band(int32_t y0, uint16_t bg)   /* the next band: screen rows y0 .. y0 + 119 */
 {

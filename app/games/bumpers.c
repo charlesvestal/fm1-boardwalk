@@ -510,6 +510,10 @@ static void bp_end(void)
     text_cat((t[0] = 0, t), "SCORE ");
     int_text(bp.score, t + 6);
     app_say(bp.new_best ? "TIME'S UP. NEW BEST" : "TIME'S UP", t);
+    {                                    /* tickets: two thirds of the score, x1 .. x1.67 by level; 2 to 100 */
+        int n = bp.score * (1 + bp.level) / 3;
+        tickets_win(n < 2 ? 2 : n > 100 ? 100 : n);
+    }
 }
 
 static void bumpers_key(int k, int down, uint32_t ms)
@@ -740,10 +744,10 @@ static void bumpers_draw(uint32_t now)
         }
         cv_rect(0, 220, 240, 20, G_LILAC);
         if (bp.state != BS_STAND)
-            cv_text(8, 224, &FONT_XS, BP_CHORD[bp.chord].name, G_INK);
+            cv_text(FOOT_L, FOOT_Y, &FONT_XS, BP_CHORD[bp.chord].name, G_INK);
         {
             const char *f = bp.state == BS_PLAY ? "PLAY: STOP" : bp.state == BS_OVER ? "PLAY: AGAIN" : "PLAY: START";
-            cv_text(232 - text_w(&FONT_XS, f), 224, &FONT_XS, f, G_INK);
+            cv_text(FOOT_R - text_w(&FONT_XS, f), FOOT_Y, &FONT_XS, f, G_INK);
         }
         band_send(y0);
     }

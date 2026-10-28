@@ -2,8 +2,8 @@
  * Copyright (C) 2026 Charles Vestal */
 /* Claw: the claw machine. The glass case sits over the keys, a column for each: press a key and the claw glides
  * over it, PLAY drops it. The case is piled with toys, each singing a note: the claw hums a toy's note as it comes
- * over it. The machine wishes for one (it plays its note, again now and then); grab that one for 10 tickets, any
- * other for 3. Big toys are chords, three keys wide: centre the claw on the middle note, and they are worth twice
+ * over it. The machine wishes for one (it plays its note, again now and then); grab that one for 5 tickets, any
+ * other for 2. Big toys are chords, three keys wide: centre the claw on the middle note, and they are worth twice
  * as much. Dead on a toy's key and the grip is good; a key off and it may slip on the way up. Ten coins a round.
  *
  * Levels (K1): 1 the toys and the wish show their notes; 2 by ear; 3 the wishes are chords (big toys). PLAY starts,
@@ -262,7 +262,7 @@ static void claw_leave(void)
 static void claw_win(uint32_t now)       /* a toy down the chute */
 {
     toy_t *t = &cw.toy[cw.held];
-    int wished = cw.held == cw.wish, tk = (wished ? 10 : 3) * (t->big ? 2 : 1);
+    int wished = cw.held == cw.wish, tk = (wished ? 5 : 2) * (t->big ? 2 : 1);
     char s[24];
     cw.tickets += tk;
     cw.won = tk;
@@ -300,6 +300,7 @@ static void claw_end(void)
     int_text(cw.tickets, t);
     text_cat(t, " TICKETS");
     app_say(cw.new_best ? "OUT OF COINS. NEW BEST" : "OUT OF COINS", t);
+    tickets_win(clamp(cw.tickets, 2, 100));   /* the machine's tickets, paid (a round of wishes: 50), at least 2 */
 }
 
 static void claw_step(uint32_t now)
@@ -492,7 +493,7 @@ static void claw_draw(uint32_t now)
         {
             const char *f = cw.state == CW_READY ? "PLAY: DROP" : cw.state == CW_OVER ? "PLAY: AGAIN" :
                             cw.state == CW_STAND ? "PLAY: START" : "";
-            cv_text(232 - text_w(&FONT_XS, f), 224, &FONT_XS, f, G_INK);
+            cv_text(FOOT_R - text_w(&FONT_XS, f), FOOT_Y, &FONT_XS, f, G_INK);
         }
         band_send(y0);
     }

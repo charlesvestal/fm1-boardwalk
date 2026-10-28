@@ -71,6 +71,11 @@ static void simon_over(int why)
         sav.simon.best = (uint16_t)(sm.len - 1);
         save_dirty();
     }
+    {                                    /* tickets: score + score squared / 6, x1 .. x1.5 by speed; 2 to 100 */
+        int s = sm.len - 1, n = (s + s * s / 6) * (3 + clamp(sav.simon.level, 1, 3)) / 4;
+        n = n < 2 ? 2 : n > 100 ? 100 : n;
+        tickets_win(n);
+    }
     snd_lock();
     bw_note(41, 120, BW_CLUNK);
     snd_unlock();
@@ -201,7 +206,7 @@ static void simon_draw(uint32_t now)
         {
             const char *f = sm.state == SS_SHOW || sm.state == SS_YOURS ? "PLAY: STOP" :
                             sm.state == SS_OVER ? "PLAY: AGAIN" : "PLAY: START";
-            cv_text(232 - text_w(&FONT_XS, f), 224, &FONT_XS, f, G_INK);
+            cv_text(FOOT_R - text_w(&FONT_XS, f), FOOT_Y, &FONT_XS, f, G_INK);
         }
         band_send(y0);
     }

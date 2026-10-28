@@ -1,13 +1,14 @@
 # Balloons: a round played by the test player (a key held, let go on the ring): every balloon tied and perfect, a
 # best kept. Let go at four fifths of the ring: tied, fewer points, the best stays. Held on and on: it pops. A key
-# held by the script on level 3 pops too; one let go at once leaves the balloon on the nozzle
+# held by the script on level 3 pops too; one let go at once leaves the balloon on the nozzle. Tickets for each round
+# played out (the pity 2 for a poor one), none for one stopped with PLAY
 wait 800
 turn SELECT 2
 wait 400
-expect cab 2
+expect cab 3
 tap PLAY
 wait 100
-expect game 3
+expect game 4
 expect balloon_state 0
 expect keys_mid 875136
 shot stand.png
@@ -31,6 +32,7 @@ expect balloon_popped 0
 expect balloon_perfect 10
 expect balloon_score 100
 expect balloon_best 100
+expect won 33
 shot over.png
 autoballoon early
 tap PLAY
@@ -42,6 +44,7 @@ expect balloon_tied 10
 expect balloon_perfect 0
 expect balloon_score <100
 expect balloon_best 100
+expect won 35
 autoballoon over
 tap PLAY
 wait 600
@@ -56,6 +59,7 @@ autoballoon off
 tap PLAY
 wait 100
 expect balloon_state 0
+expect won 35
 turn K1 2
 wait 50
 expect balloon_level 3
@@ -82,3 +86,4 @@ wait 100
 tap PLAY
 wait 100
 expect balloon_state 0
+expect won 35

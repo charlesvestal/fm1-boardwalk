@@ -510,6 +510,11 @@ static void co_end_said(void)           /* the end, said once, the best kept */
     } else {
         app_say(co.new_best ? "STALLED. NEW BEST" : "STALLED", t);
     }
+    {                                    /* tickets: one every 25 metres and one a clean run, x1.25 on level 2, x1.5 on
+                                          * 3; 2 at least, 100 at most */
+        int n = (co.dist / 25 + co.runs_clean) * (3 + co.level) / 4;
+        tickets_win(clamp(n, 2, 100));
+    }
 }
 
 static void coaster_button(int b, int down)
@@ -811,10 +816,10 @@ static void coaster_draw(uint32_t now)
                 text_mid(120, 98, &FONT_B, "NEW BEST!", G_RED);
         }
         cv_rect(0, 220, 240, 20, G_LILAC);
-        cv_text(8, 224, &FONT_XS, CO_LEVEL_NAME[co_level() - 1], G_INK);
+        cv_text(FOOT_L, FOOT_Y, &FONT_XS, CO_LEVEL_NAME[co_level() - 1], G_INK);
         {
             const char *f = state == CO_RIDE || state == CO_ROLL ? "PLAY: STOP" : state == CO_END ? "PLAY: AGAIN" : "PLAY: START";
-            cv_text(232 - text_w(&FONT_XS, f), 224, &FONT_XS, f, G_INK);
+            cv_text(FOOT_R - text_w(&FONT_XS, f), FOOT_Y, &FONT_XS, f, G_INK);
         }
         band_send(y0);
     }

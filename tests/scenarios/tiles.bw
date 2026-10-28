@@ -1,11 +1,11 @@
 # Tiles: Ode to Joy on NORMAL, every tile hit on time: every note played; again with every other tile left: about
-# half, the misses counted; the best kept
+# half, the misses counted; the best kept. Each song played through pays tickets; one stopped with PLAY none
 wait 800
 turn SELECT 3
 wait 400
 tap PLAY
 wait 100
-expect game 4
+expect game 5
 shot stand.png
 autotiles all
 tap PLAY
@@ -18,6 +18,7 @@ wavstop
 wait 33000
 expect tiles_state 2
 expect tiles_pct 100
+expect won 28
 shot done.png
 autotiles half
 tap PLAY
@@ -29,3 +30,11 @@ expect tiles_pct <70
 expect tiles_pct >30
 expect tiles_missed >10
 expect clunks_stray 0
+expect won 41
+tap PLAY
+wait 8000
+expect tiles_state 1
+tap PLAY
+wait 100
+expect tiles_state 2
+expect won 41

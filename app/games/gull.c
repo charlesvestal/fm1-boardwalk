@@ -98,6 +98,8 @@ static void gull_over(void)
         *gu_best(gu.mode) = (uint16_t)gu.score;
         save_dirty();
     }
+    /* tickets: two for three posts (x1.25 in SING by ear); 2 at least */
+    tickets_win(clamp(gu.score * (gu.mode == GU_SING && sav.gull.level == 2 ? 5 : 4) / 6, 2, 100));
     snd_lock();                          /* the splash */
     bw_drum(BW_HAT, 120);
     bw_note(40, 90, BW_CLUNK);
@@ -347,7 +349,7 @@ static void gull_draw(uint32_t now)
         cv_rect(0, 220, 240, 20, G_LILAC);
         {
             const char *f = gu.state == GS2_FLY ? "PLAY: STOP" : gu.state == GS2_OVER ? "PLAY: AGAIN" : "PLAY: START";
-            cv_text(232 - text_w(&FONT_XS, f), 224, &FONT_XS, f, G_INK);
+            cv_text(FOOT_R - text_w(&FONT_XS, f), FOOT_Y, &FONT_XS, f, G_INK);
         }
         band_send(y0);
     }

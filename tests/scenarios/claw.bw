@@ -2,10 +2,10 @@
 wait 800
 turn SELECT 11
 wait 400
-expect cab 11
+expect cab 12
 tap PLAY
 wait 100
-expect game 12
+expect game 13
 shot stand.png
 autoclaw on
 tap PLAY
@@ -14,5 +14,6 @@ shot ready.png
 wait 60000
 expect claw_state 3
 expect claw_coins 0
-expect claw_tickets >60
+expect claw_tickets >30
+expect won >30
 shot over.png

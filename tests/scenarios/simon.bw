@@ -2,10 +2,10 @@
 wait 800
 turn SELECT 8
 wait 400
-expect cab 8
+expect cab 9
 tap PLAY
 wait 100
-expect game 9
+expect game 10
 shot stand.png
 autosimon on
 tap PLAY
@@ -15,4 +15,17 @@ shot playing.png
 autosimon off
 wait 8000
 expect simon_state 3
+# its score's tickets: 5 + 25 / 6, x1.25 at medium speed
+expect won 11
 shot over.png
+# a game stopped with PLAY pays nothing
+autosimon on
+tap PLAY
+wait 6000
+expect simon_len >1
+tap PLAY
+wait 3000
+expect simon_state 0
+expect won 11
+expect pay 0
+autosimon off

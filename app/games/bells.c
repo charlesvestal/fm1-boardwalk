@@ -456,6 +456,20 @@ static void conduct_said(char *t)        /* how a conducted touch ended, and the
     text_cat(t, " WOULD DO IT.");
 }
 
+/* a touch rung to its end: its tickets. Ringing, rows x bells x (striking - 30)% / 8, a pair half as many again;
+ * conducting, rows x bells / 16 brought round at the length, 2 if not; 2 at least, 100 at most; listening, none */
+static void bells_pay(void)
+{
+    int n;
+    if (bl.mode == BM_CONDUCT)
+        n = bl.result == BR_ROUND ? bl.nrows * bl.bells / 16 : 2;
+    else if (bl.mine[0] >= 0 && bl.blows)
+        n = bl.nrows * bl.bells * (bl.score > 30 ? bl.score - 30 : 0) / 800 * (bl.mine[1] >= 0 ? 3 : 2) / 2;
+    else
+        return;
+    tickets_win(clamp(n, 2, 100));
+}
+
 static void bells_end(int stood)
 {
     char t[96];
@@ -479,6 +493,8 @@ static void bells_end(int stood)
     } else {
         app_say(stood ? "STOPPED" : "THAT'S ALL", "");
     }
+    if (!stood)
+        bells_pay();
 }
 
 static void bells_button(int b, int down)
@@ -783,16 +799,16 @@ static void bells_draw(uint32_t now)
         cv_rect(0, 220, 240, 20, G_LILAC);
         if (bl.ringing && bl.mine[0] >= 0 && bl.blows) {
             int sc = striking();
-            cv_text(8, 224, &FONT_XS, "STRIKING", G_INK);
+            cv_text(FOOT_L, FOOT_Y, &FONT_XS, "STRIKING", G_INK);
             round_rect(84, 227, 70, 6, 3, G_PAPER);
             cv_rect(84, 227, 70 * sc / 100, 6, G_TEAL);
             int_text(sc, s);
             text_cat(s, "%");
-            cv_text(232 - text_w(&FONT_XS, s), 224, &FONT_XS, s, G_INK);
+            cv_text(FOOT_R - text_w(&FONT_XS, s), FOOT_Y, &FONT_XS, s, G_INK);
         } else if (bl.ringing) {
-            cv_text(8, 224, &FONT_XS, bl.mode == BM_CONDUCT ? "LEFT: BOB  RIGHT: SINGLE" :
+            cv_text(FOOT_L, FOOT_Y, &FONT_XS, bl.mode == BM_CONDUCT ? "LEFT: BOB  RIGHT: SINGLE" :
                                       bl.mine[0] >= 0 ? "ANY KEY: YOUR BELL" : "LISTENING", G_INK);
-            cv_text(232 - text_w(&FONT_XS, "PLAY: STOP"), 224, &FONT_XS, "PLAY: STOP", G_INK);
+            cv_text(FOOT_R - text_w(&FONT_XS, "PLAY: STOP"), FOOT_Y, &FONT_XS, "PLAY: STOP", G_INK);
         } else {
             if (bl.mode == BM_CONDUCT && bl.result != BR_NONE) {
                 if (bl.result == BR_ROUND) {
@@ -802,27 +818,27 @@ static void bells_draw(uint32_t now)
                 } else {
                     text_cat((s[0] = 0, s), "NOT THIS TIME");
                 }
-                cv_text(8, 224, &FONT_XS, s, bl.result == BR_ROUND ? G_TEAL : G_RED);
+                cv_text(FOOT_L, FOOT_Y, &FONT_XS, s, bl.result == BR_ROUND ? G_TEAL : G_RED);
             } else if (bl.score >= 0) {
                 text_cat((s[0] = 0, s), new_best ? "NEW BEST! " : "STRUCK ");
                 int_text(bl.score, s + text_len(s));
                 text_cat(s, "% ");
                 text_cat(s, rating(bl.score));
-                cv_text(8, 224, &FONT_XS, s, G_RED);
+                cv_text(FOOT_L, FOOT_Y, &FONT_XS, s, G_RED);
             } else if (bl.mode == BM_CONDUCT && sav.touches) {
                 text_cat((s[0] = 0, s), "CALLED ROUND ");
                 int_text(sav.touches, s + text_len(s));
                 text_cat(s, sav.touches == 1 ? " TIME" : " TIMES");
-                cv_text(8, 224, &FONT_XS, s, G_INK);
+                cv_text(FOOT_L, FOOT_Y, &FONT_XS, s, G_INK);
             } else if (bl.mode != BM_CONDUCT && *best_slot()) {
                 text_cat((s[0] = 0, s), "BEST ");
                 int_text(*best_slot(), s + 5);
                 text_cat(s, "%");
-                cv_text(8, 224, &FONT_XS, s, G_INK);
+                cv_text(FOOT_L, FOOT_Y, &FONT_XS, s, G_INK);
             }
             {
                 const char *f = bl.mode != BM_CONDUCT && bl.mine[0] < 0 ? "PLAY: LISTEN" : "PLAY: RING";
-                cv_text(232 - text_w(&FONT_XS, f), 224, &FONT_XS, f, G_INK);
+                cv_text(FOOT_R - text_w(&FONT_XS, f), FOOT_Y, &FONT_XS, f, G_INK);
             }
         }
         band_send(y0);

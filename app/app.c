@@ -107,10 +107,21 @@ static struct {
     uint32_t at, next, done;             /* the first ticket's time, the next one's, all out (0 not yet) */
 } pay;
 
+/* and on leaving a game, the tickets won in it come out of its cabinet's slot on the boardwalk, a strip feeding
+ * down to the boards, torn off and into the count at the top left (spit_frame, scene.c's spit_draw) */
+static int32_t won_here;                 /* tickets won since stepping up to this cabinet */
+static struct {
+    int32_t n, cab, fed;                 /* the strip's tickets (0: none), its cabinet, fed out so far */
+    uint32_t at, next, done;             /* the first ticket's time, the next's, all out (0 not yet) */
+} spit;
+#define SPIT_HOLD 700u                   /* ms the strip hangs, all out, before it is torn off */
+#define SPIT_FLY 400u                    /* ms it takes to the count */
+
 static void tickets_win(int n)
 {
     if (n <= 0)
         return;
+    won_here += n;
     sav.prize.tickets += (uint32_t)n;
     sav.prize.won += (uint32_t)n;
     save_dirty();
@@ -152,6 +163,34 @@ static void pay_frame(uint32_t now)      /* the main loop: the tickets fed out, 
             ann_say(sp_buf, 0, 0);
         }
     }
+}
+
+static void spit_frame(uint32_t now)     /* the main loop, on the boardwalk: the strip fed out, a click a ticket */
+{
+    if (!spit.n || (int32_t)(now - spit.next) < 0)
+        return;
+    if (spit.done) {
+        if (now - spit.done > SPIT_HOLD + SPIT_FLY) {   /* into the count */
+            spit.n = 0;
+            snd_lock();
+            bw_note(84, 70, BW_CHIME);
+            snd_unlock();
+        }
+        return;
+    }
+    spit.fed += spit.n / 40 + 1;         /* (a long strip: a few at a click) */
+    if (spit.fed >= spit.n) {
+        spit.fed = spit.n;
+        spit.done = now | 1u;
+        snd_lock();
+        bw_drum(BW_HAT, 70);             /* torn off */
+        snd_unlock();
+        return;
+    }
+    spit.next = now + 55u;
+    snd_lock();
+    bw_drum(BW_BLOCK_HI, 24 + (int)(spit.fed & 1) * 8);
+    snd_unlock();
 }
 
 static void ticket_shape(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c)   /* a raffle ticket */
@@ -200,12 +239,14 @@ static void overlay(void)                /* over every screen, each band: the pa
 #include "games/teacups.c"
 #include "games/bumpers.c"
 #include "games/coaster.c"
+#include "games/prizes.c"
 #include "scene.c"
 
 /* --------------------------------------------------------------- cabinets --- */
 /* the row: two quick, obvious ones first, then the kinds taking turns (timing, reflex, ear, rhythm, a toy to
- * rest on), the deeper ones further along, and the bell tower at the pier's end */
-static const game_t *const GAMES[] = {&GAME_STRIKER, &GAME_WHACK, &GAME_BALLOON, &GAME_TILES, &GAME_GULL,
+ * rest on), the deeper ones further along, and the bell tower at the pier's end. The prize counter stands just
+ * before them (a new save starts at the first game, the counter in sight to the left) */
+static const game_t *const GAMES[] = {&GAME_PRIZES, &GAME_STRIKER, &GAME_WHACK, &GAME_BALLOON, &GAME_TILES, &GAME_GULL,
                                       &GAME_GALLERY, &GAME_TEACUPS, &GAME_FORTUNE, &GAME_SIMON, &GAME_BUMPERS,
                                       &GAME_ECHO, &GAME_CLAW, &GAME_PITCH, &GAME_FISH, &GAME_CHORD,
                                       &GAME_COASTER, &GAME_BELLS};
@@ -225,6 +266,7 @@ static void save_defaults(void)
     memset(&sav, 0, sizeof sav);
     sav.magic = SAVE_MAGIC;
     sav.format = SAVE_FORMAT;
+    sav.cab = 1;                         /* the first game, the prize counter in sight beside it */
     sav.surf = 40;                       /* the sea under the tunes, not over them */
     sav.tunes = 60;
     sav.bells.method = 4;                /* Plain Bob Minor */
@@ -399,6 +441,8 @@ static void step_up(void)                /* PLAY: into the cabinet in front */
             app_warn("NOT SAVED", "THE FLASH DID NOT TAKE IT");
     }
     ui.game = g;
+    won_here = 0;
+    spit.n = 0;                          /* (a strip still feeding: into the count at once) */
     g->enter();
     surf_for(g);
     if (ann_on()) {                      /* a new screen: all of it */
@@ -412,6 +456,14 @@ static void step_down(void)              /* HOME: back to the boardwalk */
     if (ui.game && ui.game->leave)
         ui.game->leave();
     ui.game = 0;
+    if (won_here > 0) {                  /* the tickets won here, out of the cabinet's slot */
+        spit.n = won_here;
+        spit.cab = sav.cab;
+        spit.fed = 0;
+        spit.at = spit.next = plat_ms() + 300u;
+        spit.done = 0;
+        won_here = 0;
+    }
     surf_for(0);
     tune_fade();
     if (ann_on()) {
@@ -593,6 +645,8 @@ void app_frame(void)
     lights();
     ann_tick(now);
     pay_frame(now);
+    if (!ui.game)
+        spit_frame(now);
     /* saved when nothing is playing (a flash write holds the sound a moment): in a game, 2.5 s after a change (a
      * round's closing chimes ring out first); on the
      * boardwalk (the sea and the tunes play on), after 10 s left alone, or on stepping into a game */
@@ -625,7 +679,7 @@ void app_frame(void)
 #ifdef PLAT_HOST
 int app_expect(const char *what, int *got)
 {
-    if (striker_expect(what, got) || balloon_expect(what, got) || fish_expect(what, got) || fortune_expect(what, got) || teacups_expect(what, got) || bumpers_expect(what, got) || coaster_expect(what, got))   /* the later games' own */
+    if (prizes_expect(what, got) || striker_expect(what, got) || balloon_expect(what, got) || fish_expect(what, got) || fortune_expect(what, got) || teacups_expect(what, got) || bumpers_expect(what, got) || coaster_expect(what, got))   /* the later games' own */
         return 1;
     if (!strcmp(what, "game"))           /* 0 the boardwalk, 1 + the cabinet */
         *got = ui.game ? sav.cab + 1 : 0;
@@ -635,6 +689,8 @@ int app_expect(const char *what, int *got)
         *got = (int)sav.prize.won;
     else if (!strcmp(what, "pay"))       /* the payout on the screen: its tickets, 0 none */
         *got = pay.n;
+    else if (!strcmp(what, "spit"))      /* the strip out of a cabinet: its tickets, 0 none */
+        *got = spit.n;
     else if (!strcmp(what, "cab"))
         *got = sav.cab;
     else if (!strcmp(what, "ringing"))
@@ -749,7 +805,7 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
     (void)b;
     (void)c;
     (void)d;
-    if (striker_host_cmd(cmd, a) || balloon_host_cmd(cmd, a) || fish_host_cmd(cmd, a) || fortune_host_cmd(cmd, a) || teacups_host_cmd(cmd, a) || bumpers_host_cmd(cmd, a) || coaster_host_cmd(cmd, a))   /* the later games' own */
+    if (prizes_host_cmd(cmd, a) || striker_host_cmd(cmd, a) || balloon_host_cmd(cmd, a) || fish_host_cmd(cmd, a) || fortune_host_cmd(cmd, a) || teacups_host_cmd(cmd, a) || bumpers_host_cmd(cmd, a) || coaster_host_cmd(cmd, a))   /* the later games' own */
         return 1;
     if (!strcmp(cmd, "givetickets")) {  /* tickets, as if won */
         tickets_win(atoi(a));
@@ -1057,6 +1113,7 @@ void app_speak_dump(void)
         sp_out("SCREEN", sp_buf);
     }
     ec.state = ES_STAND;
+    prizes_speak_dump();
     striker_speak_dump();
     balloon_speak_dump();
     fish_speak_dump();

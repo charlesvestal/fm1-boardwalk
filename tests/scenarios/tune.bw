@@ -13,8 +13,17 @@ wait 15000
 expect pitch_state 1
 expect pitch_err >-3
 expect pitch_err <3
+expect won 0
 shot tuning.png
 autotune off
 wait 60000
 expect pitch_state 3
+expect won >9
 shot over.png
+tap PLAY
+autotune on
+wait 8000
+tap PLAY
+wait 4000
+expect pitch_state 3
+expect won 15

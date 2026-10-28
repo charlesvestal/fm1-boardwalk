@@ -221,6 +221,8 @@ static void echo_judge(int bar)
         text_cat(t, "SCORE ");
         int_text(ec.score, t + 6);
         app_say(ec.new_best ? "GAME OVER. NEW BEST" : "GAME OVER", t);
+        tickets_win(clamp(2 + ec.score * (3 + ec.level) / 4, 2, 100));   /* tickets: 2, and 1 an answer passed (2 on
+                                                                         * level 5), by the level it ended on */
     }
 }
 
@@ -358,7 +360,7 @@ static void echo_draw(uint32_t now)
         cv_rect(0, 220, 240, 20, G_LILAC);
         {
             const char *f = ec.state == ES_PLAY ? "PLAY: STOP" : ec.state == ES_OVER ? "PLAY: AGAIN" : "PLAY: START";
-            cv_text(232 - text_w(&FONT_XS, f), 224, &FONT_XS, f, G_INK);
+            cv_text(FOOT_R - text_w(&FONT_XS, f), FOOT_Y, &FONT_XS, f, G_INK);
         }
         band_send(y0);
     }
