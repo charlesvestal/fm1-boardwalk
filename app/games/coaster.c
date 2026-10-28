@@ -67,9 +67,9 @@ static const char *const CO_LEVEL_SAY[CO_LEVELS] = {"C MAJOR SCALES", "MORE KEYS
                                                     "FASTER AND LONGER RUNS"};
 static const uint8_t CO_BPM[CO_LEVELS] = {72, 92, 112};
 static const uint8_t CO_TOL[CO_LEVELS] = {34, 30, 24};   /* px of climb a train at cruise can coast up */
-static const float CO_WIN[CO_LEVELS] = {0.30f, 0.25f, 0.21f};   /* s: a note counts this late after its marker, and
+static const float CO_WIN[CO_LEVELS] = {0.40f, 0.32f, 0.26f};   /* s: a note counts this late after its marker, and
                                                                   * half as long again early (hands run ahead) */
-static const float CO_BRAKE[CO_LEVELS] = {0.15f, 0.22f, 0.3f};  /* a wrong note's loss, of the cruise speed */
+static const float CO_BRAKE[CO_LEVELS] = {0.10f, 0.16f, 0.24f};  /* a wrong note's loss, of the cruise speed */
 static const uint8_t CO_NRUNS[CO_LEVELS] = {6, 8, 10};
 static const uint8_t SC_MAJ[7] = {0, 2, 4, 5, 7, 9, 11}, SC_MIN[7] = {0, 2, 3, 5, 7, 8, 10};
 
@@ -321,8 +321,10 @@ static void coaster_key(int k, int down, uint32_t ms)
         if (near && 53 + k == co.pnote[p]) {   /* right, in time: it sounds, and lifts the train */
             int q = next_note(p);
             float rise = q >= 0 && co.prun[q] == co.prun[p] ? (float)(co.ph[q] - co.ph[p]) : 0.0f;
-            co.v = fm_sqrtf(1.3225f * co.v0 * co.v0 + 2.0f * co.g * (rise > 0.0f ? rise : 0.0f)) + 0.2f * co.v0;
-                                 /* the climb's lift, to reach the next note with a sixth to spare, and a burst */
+            float lift = fm_sqrtf(1.3225f * co.v0 * co.v0 + 2.0f * co.g * (rise > 0.0f ? rise : 0.0f));
+            co.v = (co.v > lift ? co.v : lift) + 0.25f * co.v0;   /* the climb's lift (to the next note with a
+                                                                    * sixth to spare), and on top a burst: right
+                                                                    * notes in a row build speed */
             co.pstate[p] = CO_NHIT;
             co.hits++;
             co.burst_ms = ms | 1u;
@@ -404,11 +406,11 @@ static void coaster_tick(uint32_t ms)    /* the ride, a millisecond at a time */
     }
     {
         int in_run = co.pkind[seg] == CO_PNOTE && seg + 1 < co.npts && co.pkind[seg + 1] == CO_PNOTE;
-        if (in_run && s < 0.05f && co.v > co.v0)   /* through a run the pace stays near the beat */
-            a -= 2.5f * (co.v - co.v0);
+        if (in_run && s < 0.05f && co.v > 1.3f * co.v0)   /* through a run the pace eases back, slowly */
+            a -= 0.6f * (co.v - 1.3f * co.v0);
         co.v += a * dt;
-        if (co.v > (in_run ? 1.6f : 2.3f) * co.v0)
-            co.v = (in_run ? 1.6f : 2.3f) * co.v0;
+        if (co.v > (in_run ? 1.7f : 2.4f) * co.v0)
+            co.v = (in_run ? 1.7f : 2.4f) * co.v0;
     }
     if (co.v <= 0.0f || (co.slow_ms && ms - co.slow_ms > 2500u)) {   /* stalled: it rolls back */
         co.state = CO_ROLL;
