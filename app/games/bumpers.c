@@ -137,6 +137,22 @@ static void bp_place(void)               /* the cars on the floor: yours low in 
     }
 }
 
+static void bp_line_up(void)             /* standing: the others in a row under the card, low note to high (the
+                                          * colours run round the rainbow), yours below them */
+{
+    int i;
+    for (i = 1; i < bp.ncars; i++) {
+        bp.car[i].x = (float)(120 + (2 * i - bp.ncars) * 20);
+        bp.car[i].y = 160.0f;
+        bp.car[i].hx = 0.0f;
+        bp.car[i].hy = 1.0f;
+    }
+    bp.car[0].x = 120.0f;
+    bp.car[0].y = 198.0f;
+    bp.car[0].hx = 0.0f;
+    bp.car[0].hy = -1.0f;
+}
+
 static void bp_notes(void)               /* the chord's tones on the cars: root, third, fifth, root, third up */
 {
     static const uint8_t ROLE[5] = {0, 1, 2, 0, 1};
@@ -482,10 +498,14 @@ static void bp_end(void)
         save_dirty();
     }
     memset(bp.fan, 0, sizeof bp.fan);
-    snd_lock();                          /* the power goes off: a buzz down, a bell */
+    snd_lock();                          /* the power goes off: a buzz down, a bell (a new best: a chord) */
     bw_note(43, 70, BW_SAW);
     bw_note(72, 90, BW_CHIME);
     bw_note(79, 80, BW_CHIME);
+    if (bp.new_best) {
+        bw_note(76, 85, BW_CHIME);
+        bw_note(84, 90, BW_CHIME);
+    }
     snd_unlock();
     text_cat((t[0] = 0, t), "SCORE ");
     int_text(bp.score, t + 6);
@@ -537,6 +557,7 @@ static void bumpers_button(int b, int down)
     if (bp.state == BS_PLAY) {
         bp.state = BS_STAND;
         memset(bp.fan, 0, sizeof bp.fan);
+        bp_line_up();
         app_say("STOPPED", "");
     } else {
         bumpers_go();
@@ -558,6 +579,7 @@ static void bumpers_enc(int role, int steps)
     bp_say_level();
     bp.state = BS_STAND;
     bp_place();
+    bp_line_up();
     bp.chord = 0;
     bp_notes();
     save_dirty();
@@ -570,6 +592,7 @@ static void bumpers_enter(void)
     bp.held = 0;
     bp.chord = 0;
     bp_place();
+    bp_line_up();
     bp_notes();
 }
 static void bumpers_leave(void)
@@ -686,23 +709,21 @@ static void bumpers_draw(uint32_t now)
                 text_mid(120, 44, &FONT_L, bp.big, (now / 100u & 1u) ? G_ORANGE : G_BULB);
         }
         if (bp.state == BS_STAND) {
-            round_rect(6, 36, 228, 134, 8, G_PAPER);
-            cv_text(14, 46, &FONT_XS, "K1 LEVEL", G_PLANK2);
+            round_rect(14, 36, 212, 100, 8, G_PAPER);   /* (the cars wait in their row below it) */
+            cv_text(24, 44, &FONT_XS, "K1 LEVEL", G_PLANK2);
             int_text(sav.more[SV_BUMPERS].level, s);
             text_cat(s, " ");
             text_cat(s, BP_LEVEL_NAME[clamp(sav.more[SV_BUMPERS].level, 1, BP_LEVELS) - 1]);
-            cv_text(94, 44, &FONT_B, s, G_INK);
-            cv_text(14, 70, &FONT_XS, "WHITE KEYS STEER: THE LEFT HALF", G_PLANK2);
-            cv_text(14, 84, &FONT_XS, "LEFT, THE RIGHT HALF RIGHT.", G_PLANK2);
-            cv_text(14, 98, &FONT_XS, "BUMP THE CARS IN RISING ORDER,", G_PLANK2);
-            cv_text(14, 112, &FONT_XS, "OR A WHOLE CHORD IN 2 SECONDS.", G_PLANK2);
-            cv_text(14, 126, &FONT_XS, "MIND YOUR BACK. BLACK KEYS HONK.", G_PLANK2);
+            cv_text(104, 42, &FONT_B, s, G_INK);
+            cv_text(24, 66, &FONT_XS, "HOLD A WHITE KEY TO STEER: LEFT", G_PLANK2);
+            cv_text(24, 80, &FONT_XS, "HALF LEFT, RIGHT HALF RIGHT.", G_PLANK2);
+            cv_text(24, 94, &FONT_XS, "BUMP THE CARS LOW NOTE TO HIGH.", G_PLANK2);
             text_cat((s[0] = 0, s), "60 SECONDS");
             if (sav.more[SV_BUMPERS].best) {
                 text_cat(s, ". BEST ");
                 int_text(sav.more[SV_BUMPERS].best, s + text_len(s));
             }
-            cv_text(14, 144, &FONT_B, s, G_INK);
+            cv_text(24, 112, &FONT_B, s, G_INK);
         }
         if (bp.state == BS_OVER) {
             round_rect(40, 64, 160, 92, 8, G_PAPER);
@@ -794,8 +815,8 @@ static void bumpers_where(char *t)
         sp_num(t, clamp(sav.more[SV_BUMPERS].level, 1, BP_LEVELS));
         text_cat(t, ", ");
         text_cat(t, BP_LEVEL_NAME[clamp(sav.more[SV_BUMPERS].level, 1, BP_LEVELS) - 1]);
-        text_cat(t, ". THE WHITE KEYS STEER, THE LEFT HALF LEFT AND THE RIGHT HALF RIGHT. BUMP THE CARS IN RISING "
-                    "ORDER, OR A WHOLE CHORD. MIND YOUR BACK. BLACK KEYS HONK. ");
+        text_cat(t, ". HOLD A WHITE KEY TO STEER, THE LEFT HALF LEFT AND THE RIGHT HALF RIGHT. BUMP THE CARS "
+                    "LOW NOTE TO HIGH. ");
         if (sav.more[SV_BUMPERS].best) {
             text_cat(t, "BEST ");
             sp_num(t, sav.more[SV_BUMPERS].best);

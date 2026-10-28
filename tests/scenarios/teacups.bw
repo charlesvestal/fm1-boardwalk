@@ -57,6 +57,7 @@ autoteacups off
 turn K1 -1
 expect teacups_level 1
 expect teacups_state 0
+shot stand1.png
 autoteacups on
 tap PLAY
 wait 16000

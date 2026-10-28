@@ -57,12 +57,14 @@ static struct {
     volatile int hits, wrongs, misses, runs_done, runs_clean;
     volatile int ev_run, said_run;       /* a run begun (its number), and the one last said */
     volatile uint32_t burst_ms, wrong_ms, clean_ms, roll_ms, slow_ms;
+    volatile int ding_i, ding_n;         /* a clean run's ding-dong: chimes still to ring, its top note */
     int tone_lv, tone_c;
     uint32_t tone_ms;
 } co;
 
-static const char *const CO_LEVEL_NAME[CO_LEVELS] = {"C MAJOR", "KEYS, CHORDS", "FAST, LONG"};
-static const char *const CO_LEVEL_SAY[CO_LEVELS] = {"C MAJOR SCALES", "OTHER KEYS AND ARPEGGIOS", "FASTER, LONGER RUNS"};
+static const char *const CO_LEVEL_NAME[CO_LEVELS] = {"C MAJOR", "MORE KEYS", "FAST"};
+static const char *const CO_LEVEL_SAY[CO_LEVELS] = {"C MAJOR SCALES", "MORE KEYS AND ARPEGGIOS",
+                                                    "FASTER AND LONGER RUNS"};
 static const uint8_t CO_BPM[CO_LEVELS] = {80, 96, 116};
 static const uint8_t CO_TOL[CO_LEVELS] = {26, 24, 22};   /* px of climb a train at cruise can coast up */
 static const uint8_t CO_NRUNS[CO_LEVELS] = {6, 8, 10};
@@ -255,6 +257,7 @@ static void co_go(void)
     co.hits = co.wrongs = co.misses = co.runs_done = co.runs_clean = 0;
     co.ev_run = co.said_run = 0;
     co.burst_ms = co.wrong_ms = co.clean_ms = co.slow_ms = 0;
+    co.ding_i = 0;
     co.said_end = 0;
     co.tone_lv = -1;
     co.state = CO_RIDE;
@@ -286,7 +289,9 @@ static void run_judged(int p)            /* a note judged: its run done if it wa
     if (co.run_clean[r]) {
         co.runs_clean++;
         co.clean_ms = plat_ms() | 1u;
-        bw_note(84 + co.run[r].root % 12 - (co.run[r].root > 7 ? 12 : 0), 70, BW_CHIME);   /* a ding */
+        co.ding_n = 84 + co.run[r].root % 12 - (co.run[r].root > 7 ? 12 : 0);   /* a ding-dong, rung by the tick
+                                                                               * just after the note (not under it) */
+        co.ding_i = 2;
     }
 }
 
@@ -356,6 +361,13 @@ static void coaster_tick(uint32_t ms)    /* the ride, a millisecond at a time */
     int seg;
     if (co.state == CO_STAND)
         return;
+    if (co.ding_i == 2 && ms - co.clean_ms >= 90u) {
+        bw_note(co.ding_n - 5, 100, BW_CHIME);
+        co.ding_i = 1;
+    } else if (co.ding_i == 1 && ms - co.clean_ms >= 220u) {
+        bw_note(co.ding_n, 110, BW_CHIME);
+        co.ding_i = 0;
+    }
     if (co.state == CO_END) {            /* into the station: the brakes, to a stop */
         if (co.end_kind == CO_STATION && co.v > 0.0f) {
             co.v -= (co.v * 2.5f + 15.0f) * dt;
@@ -456,7 +468,12 @@ static int co_metres(void)
     return d > 0.0f ? (int)(d / (float)CO_PX_M) : 0;
 }
 
-static void co_end_said(void)            /* the end, said once, the best kept */
+static int co_run_on(void)               /* the run the train is on (or stalled on), from 1 */
+{
+    return clamp(co.nx < co.npts ? co.prun[co.nx] + 1 : co.nruns, 1, co.nruns);
+}
+
+static void co_end_said(void)           /* the end, said once, the best kept */
 {
     char t[48] = "";
     co.dist = co_metres();
@@ -672,7 +689,7 @@ static void coaster_draw(uint32_t now)
         }
         for (i = 0; i < co.nruns; i++) { /* each run's name, on a banner over its start */
             int32_t sx = co.px[co.run[i].first] - cam, w;
-            if (sx < -200 || sx > 250 || state == CO_STAND)
+            if (sx < -200 || sx > 250 || state == CO_STAND || state == CO_END)
                 continue;
             s[0] = 0;
             run_text(i, s, 0);
@@ -686,7 +703,7 @@ static void coaster_draw(uint32_t now)
                                                                     * one dark, one played teal, one missed grey */
             int32_t sx = co.px[i] - cam, y = CO_GY - co.ph[i], w;
             int st = co.pstate[i], next = i == co.nx && state == CO_RIDE;
-            if (sx > 260)
+            if (sx > 260 || state == CO_END)   /* (over: the card's, not the notes') */
                 break;
             if (co.pkind[i] != CO_PNOTE || sx < -20 ||
                 (st != CO_NWAIT && (float)co.px[i] <= co.x - 2.0f && state != CO_STAND))   /* (gone by: the
@@ -718,15 +735,12 @@ static void coaster_draw(uint32_t now)
         if (state != CO_STAND) {
             s[0] = 0;
             text_cat(s, "RUN ");
-            sp_num(s, clamp(co.nx < co.npts ? co.prun[co.nx] + 1 : co.nruns, 1, co.nruns));
+            sp_num(s, co_run_on());
             text_cat(s, " OF ");
             sp_num(s, co.nruns);
             text_cat(s, "   ");
             sp_num(s, co_metres());
             text_cat(s, " M");
-            cv_text(234 - text_w(&FONT_XS, s), 3, &FONT_XS, s, G_PAPER);
-        } else if (sav.more[SV_COASTER].best) {
-            coaster_best_text(s);
             cv_text(234 - text_w(&FONT_XS, s), 3, &FONT_XS, s, G_PAPER);
         }
         if (state == CO_STAND) {
@@ -737,10 +751,17 @@ static void coaster_draw(uint32_t now)
             text_cat(s, "  ");
             text_cat(s, CO_LEVEL_NAME[co_level() - 1]);
             cv_text(94, 30, &FONT_B, s, G_INK);
-            cv_text(14, 56, &FONT_XS, "THE TRACK IS A TUNE. PLAY EACH NOTE", G_PLANK2);
-            cv_text(14, 70, &FONT_XS, "AS THE FRONT CAR REACHES IT.", G_PLANK2);
-            cv_text(14, 84, &FONT_XS, "CLIMBS NEED NOTES. WRONG ONES BRAKE.", G_PLANK2);
-            cv_text(14, 98, &FONT_XS, "STOP ON A CLIMB AND IT ROLLS BACK.", G_PLANK2);
+            cv_text(14, 56, &FONT_XS, "PLAY EACH NOTE AS THE TRAIN REACHES IT.", G_PLANK2);
+            cv_text(14, 70, &FONT_XS, "RIGHT NOTES PULL IT UP THE HILLS,", G_PLANK2);
+            cv_text(14, 84, &FONT_XS, "WRONG ONES BRAKE. DON'T STALL!", G_PLANK2);
+            if (sav.more[SV_COASTER].best) {
+                coaster_best_text(s);
+                cv_text(14, 100, &FONT_B, s, G_INK);
+            }
+        }
+        if (state == CO_ROLL) {          /* stalled: why it is going backwards */
+            round_rect(70, 46, 100, 20, 8, G_PAPER);
+            text_mid(120, 48, &FONT_B, "TOO SLOW!", G_RED);
         }
         if (state == CO_END) {
             round_rect(40, 24, 160, co.new_best ? 96 : 80, 8, G_PAPER);
@@ -751,10 +772,17 @@ static void coaster_draw(uint32_t now)
             text_cat(s, " M");
             text_mid(120, 45, &FONT_L, s, G_INK);
             s[0] = 0;
-            sp_num(s, co.runs_clean);
-            text_cat(s, " OF ");
-            sp_num(s, co.nruns);
-            text_cat(s, " RUNS CLEAN");
+            if (co.end_kind == CO_STATION) {
+                sp_num(s, co.runs_clean);
+                text_cat(s, " OF ");
+                sp_num(s, co.nruns);
+                text_cat(s, " RUNS CLEAN");
+            } else {                     /* stalled: how far it got */
+                text_cat(s, "ON RUN ");
+                sp_num(s, co_run_on());
+                text_cat(s, " OF ");
+                sp_num(s, co.nruns);
+            }
             text_mid(120, 80, &FONT_XS, s, G_PLANK2);
             if (co.new_best)
                 text_mid(120, 98, &FONT_B, "NEW BEST!", G_RED);
@@ -830,8 +858,7 @@ static void coaster_where(char *t)
         sp_num(t, co_level());
         text_cat(t, ", ");
         text_cat(t, CO_LEVEL_SAY[co_level() - 1]);
-        text_cat(t, ". THE TRACK IS A TUNE. PLAY EACH NOTE AS THE TRAIN REACHES IT, CLIMBS NEED THE NOTES AND A WRONG "
-                    "ONE BRAKES. ");
+        text_cat(t, ". PLAY EACH NOTE AS THE TRAIN REACHES IT. RIGHT NOTES PULL IT UP THE HILLS, WRONG ONES BRAKE. ");
         if (sav.more[SV_COASTER].best) {
             text_cat(t, "BEST ");
             sp_num(t, sav.more[SV_COASTER].best);
@@ -843,11 +870,20 @@ static void coaster_where(char *t)
     if (co.state == CO_END) {
         text_cat(t, co.end_kind == CO_STATION ? "COASTER. STATION, " : "COASTER. STALLED, ");
         sp_num(t, co.dist);
-        text_cat(t, " METRES, ");
-        sp_num(t, co.runs_clean);
-        text_cat(t, " OF ");
-        sp_num(t, co.nruns);
-        text_cat(t, co.new_best ? " RUNS CLEAN. NEW BEST. PLAY STARTS AGAIN." : " RUNS CLEAN. PLAY STARTS AGAIN.");
+        if (co.end_kind == CO_STATION) {
+            text_cat(t, " METRES, ");
+            sp_num(t, co.runs_clean);
+            text_cat(t, " OF ");
+            sp_num(t, co.nruns);
+            text_cat(t, " RUNS CLEAN.");
+        } else {
+            text_cat(t, " METRES, ON RUN ");
+            sp_num(t, co_run_on());
+            text_cat(t, " OF ");
+            sp_num(t, co.nruns);
+            text_cat(t, ".");
+        }
+        text_cat(t, co.new_best ? " NEW BEST. PLAY STARTS AGAIN." : " PLAY STARTS AGAIN.");
         return;
     }
     text_cat(t, co.state == CO_ROLL ? "COASTER. STALLED, ROLLING BACK. " : "COASTER. ");

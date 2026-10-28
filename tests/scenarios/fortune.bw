@@ -11,8 +11,10 @@ expect game 14
 expect fortune_state 0
 shot empty.png
 tap PLAY
-wait 100
+wait 150
 expect fortune_state 0
+shot nudge.png
+wait 900
 tapkey 7
 tapkey 11
 tapkey 14

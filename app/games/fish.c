@@ -1,7 +1,8 @@
 /* SPDX-License-Identifier: MPL-2.0
  * Copyright (C) 2026 Charles Vestal */
 /* Fishing: the fishing pond under the pier, a column a key. Fish swim to and fro below the water, each with its own
- * note: it hums it softly as it passes under your float. Press a key to cast there; a fish nearby comes to the bait,
+ * note: it hums it softly as it passes under your float. Press a key to cast there (casting again before anything
+ * bites is free); a fish nearby comes to the bait,
  * nibbles, and takes it: the float dips with the fish's note (the plip). Press that note's key while the float is
  * under to hook it (before the dip, or too late, or the wrong note, and it gets away). Then reel it in: the line tugs
  * on a steady beat (heard, and seen on the line and the keys); a tap in time with the tug reels, frantic taps tighten
@@ -54,6 +55,7 @@ static struct {
     int judged_n, good_n;
     float dist, tension, step;
     uint32_t last_tap_ms, knob_ms, landed_ms;
+    uint32_t fanfare_ms;                 /* the end's chimes, after the last fish's bells (0: played) */
     int warned;
     int snaps, lost;                     /* for the tests */
     /* what was said, on the screen a moment */
@@ -187,10 +189,20 @@ static void fish_end(uint32_t now)
     text_cat(t, " FISH");
     app_say(fi.ended_by_time ? (fi.new_best ? "TIME'S UP. NEW BEST" : "TIME'S UP") :
                                (fi.new_best ? "LAST CAST. NEW BEST" : "LAST CAST"), t);
+    fi.fanfare_ms = now + (fi.landed_ms && now - fi.landed_ms < 100u ? 900u : 0u) + 1u;   /* the landing heard first */
+}
+
+static void fish_fanfare(uint32_t now)   /* the end's chimes: a rising run, one more note for a new best */
+{
+    if (!fi.fanfare_ms || (int32_t)(now - fi.fanfare_ms) < 0)
+        return;
+    fi.fanfare_ms = 0;
     snd_lock();
     bw_note(72, 70, BW_CHIME);
     bw_note(76, 60, BW_CHIME);
     bw_note(79, 60, BW_CHIME);
+    if (fi.new_best)
+        bw_note(84, 70, BW_CHIME);
     snd_unlock();
 }
 
@@ -241,8 +253,9 @@ static void fish_go(void)
     fi.ended_by_time = 0;
     fi.msg_ms = 0;
     fi.landed_ms = 0;
+    fi.fanfare_ms = 0;
     fi.state = FS_AIM;
-    app_say("TEN CASTS", "PRESS A KEY TO CAST THERE");
+    app_say("TEN CASTS", "PRESS THE KEY UNDER A FISH");
 }
 
 static void fish_bite_plan(uint32_t now) /* at the float: its nibbles, then the dip */
@@ -361,11 +374,13 @@ static void reel_tap(uint32_t ms)        /* a tap while reeling: judged against 
         fi.tension += fi.level == 3 ? 30.0f : 24.0f;
         fi.dist -= fi.step * 0.15f;
         bw_note(48, 60, BW_DUD);
-    } else if (n >= 1 && e <= p * 28 / 100 && fi.good_n < n) {   /* in time: it reels */
+    } else if (n >= 1 && e <= p * 28 / 100 && fi.good_n < n) {   /* in time: it reels, a chime climbing as it comes */
+        static const uint8_t UP[8] = {0, 2, 4, 7, 9, 12, 14, 16};
         fi.good_n = n;
         fi.dist -= fi.step;
         fi.tension -= 6.0f;
-        bw_drum(BW_BLOCK_HI, 75);
+        bw_drum(BW_BLOCK_HI, 60);
+        bw_note(fi_note(&fi.fish[fi.hf]) + UP[clamp((int32_t)((100.0f - fi.dist) * 8.0f / 100.0f), 0, 7)], 85, BW_CHIME);
     } else {                             /* off the beat: a little */
         fi.dist -= fi.step * 0.35f;
         fi.tension += 8.0f;
@@ -400,10 +415,9 @@ static void fish_key(int k, int down, uint32_t ms)
             bw_drum(BW_BLOCK_LO, 60);
             snd_unlock();
             fish_away("TOO EARLY", "IT SWAM OFF", "TOO EARLY", ms);
-        } else {                         /* nothing at the bait: in, and out again here */
-            cast_over(ms);
-            if (fi.state == FS_AIM)
-                fish_cast(k, ms);
+        } else {                         /* nothing at the bait yet: in, and out again here (not another cast) */
+            fi.casts--;
+            fish_cast(k, ms);
         }
         break;
     case FS_REEL:
@@ -573,6 +587,7 @@ static void fish_leave(void)
 {
     fi.state = FS_STAND;
     fi.in_front = 0;
+    fi.fanfare_ms = 0;
     snd_lock();
     bw_bells_damp();
     snd_unlock();
@@ -596,13 +611,16 @@ static void fish_shape(int32_t x, int32_t y, int size, int kind, int dir, uint16
     cv_rect(x + dir * (L - 3) - 1, y - 1, 2, 2, G_INK);   /* the eye */
 }
 
-static void fish_float(int32_t x, int32_t y)   /* the float: red over white, a stick on top */
+static void fish_float(int32_t x, int32_t y, int under)   /* the float: red over white, a stick on top; under: pulled
+                                                             * below, seen through the water */
 {
     int32_t i;
+    uint16_t water = RGB(70, 130, 170);
     cv_rect(x, y - 8, 1, 4, G_RED2);
     for (i = -4; i <= 4; i++) {
         int32_t w = (int32_t)fm_sqrtf((float)(16 - i * i) + 0.5f);
-        cv_rect(x - w, y + i, 2 * w + 1, 1, i < 0 ? G_RED : C_WHITE);
+        uint16_t c = i < 0 ? G_RED : C_WHITE;
+        cv_rect(x - w, y + i, 2 * w + 1, 1, under ? mix(c, water, 150) : c);
     }
 }
 
@@ -614,7 +632,7 @@ static uint16_t fish_key_col(int k)      /* the key the float is on */
 static void fish_draw(uint32_t now)
 {
     int32_t y0, i, y, fx = key_x(fi.col);
-    int names = fi.level == 1 && fi.state != FS_STAND;
+    int names = fi.level == 1 && (fi.state == FS_AIM || fi.state == FS_WAIT);   /* level 1: the notes, while fishing */
     uint32_t tug_ago = fi.state == FS_REEL ? (now - fi.hook_ms) % fi.period : 9999u;
     int tug = fi.state == FS_REEL && now - fi.hook_ms >= fi.period && tug_ago < 90u;
     char s[40];
@@ -650,13 +668,15 @@ static void fish_draw(uint32_t now)
             if (!f->on || (fi.state == FS_REEL && i == fi.hf))
                 continue;
             fish_shape((int32_t)f->x, fy, f->size, f->kind, f->dir, RGB(40, 90, 130));
-            if (names && !f->flee) {
+            if (names && !f->flee && (fi.state != FS_WAIT || !fi.arrived || i == fi.taker)) {   /* at the bait: its alone */
+                int32_t hw;
                 note_text(fi_note(f), s);
-                text_mid((int32_t)f->x, fy - 18, &FONT_XS, s, G_PAPER);
+                hw = text_w(&FONT_XS, s) / 2;
+                text_mid(clamp((int32_t)f->x, hw + 2, 238 - hw), fy - 18, &FONT_XS, s, G_PAPER);
             }
         }
         /* the rod, the line, the float (or the fish on it) */
-        if (fi.state != FS_STAND) {
+        if (fi.state != FS_STAND && fi.state != FS_OVER) {   /* (over: put away, for the catch on the pier) */
             int32_t tip = FI_TIP + (tug ? 4 : 0), fly = FI_SURF;
             uint16_t lc = tug ? G_PAPER : RGB(70, 60, 70);
             cv_line(fx + 34, 60, fx + 2, tip, G_WHEEL);
@@ -664,7 +684,7 @@ static void fish_draw(uint32_t now)
             if (fi.state == FS_REEL) {
                 fish_t *f = &fi.fish[fi.hf];
                 float d = fi.dist < 0.0f ? 0.0f : fi.dist;
-                int32_t hy = clamp(FI_SURF + 12 + (int32_t)(d * 0.8f), FI_SURF + 10, FI_BED - 10);
+                int32_t hy = clamp(FI_SURF + 22 + (int32_t)(d * 0.8f), FI_SURF + 22, FI_BED - 10);   /* (under the words) */
                 int32_t hx = fx + (int32_t)(fm_sinf((float)(now % 6283u) * 0.005f) * 16.0f * (d + 20.0f) / 120.0f);
                 cv_line(fx + 2, tip, hx, hy, lc);
                 fish_shape(hx, hy, f->size, f->kind, hx > fx ? 1 : -1, RGB(40, 90, 130));
@@ -678,12 +698,17 @@ static void fish_draw(uint32_t now)
                         if ((int32_t)(now - fi.nib_ms[i]) >= 0 && now - fi.nib_ms[i] < 160u)
                             wob = 2;
                     if (fi.dip_ms && (int32_t)(now - fi.dip_ms) >= 0)
-                        fly = FI_SURF + 7;   /* under */
+                        fly = FI_SURF + 12;   /* under */
                 } else {
                     fly = tip + 14;      /* hanging, ready */
                 }
                 cv_line(fx + 2, tip, fx, fly - 8 + wob, lc);
-                fish_float(fx, fly + wob);
+                fish_float(fx, fly + wob, fly > FI_SURF + 4);
+                if (fi.state == FS_WAIT && fi.dip_ms && (int32_t)(now - fi.dip_ms) >= 0) {   /* a bite! (clear of the rod) */
+                    int32_t bx = fx < 24 ? fx + 16 : fx - 14;
+                    round_rect(bx - 6, FI_SURF - 22, 13, 19, 5, G_PAPER);
+                    text_mid(bx, FI_SURF - 21, &FONT_B, "!", G_RED);
+                }
                 if (fi.state == FS_WAIT && fly >= FI_SURF) {   /* the rings it makes */
                     uint32_t ago = fi.dip_ms && (int32_t)(now - fi.dip_ms) >= 0 ? now - fi.dip_ms : now - fi.cast_ms - 250u;
                     int32_t r = 6 + (int32_t)(ago / 40u);
@@ -730,10 +755,10 @@ static void fish_draw(uint32_t now)
             round_rect(222, 76, 12, 116, 4, RGB(20, 50, 80));
             cv_rect(225, 189 - h, 6, h, c);
             fill_circle(228, 68, 5, tug ? G_PAPER : RGB(20, 50, 80));
-            text_mid(120, 72, &FONT_XS, "TAP WITH THE TUG", G_PAPER);
+            text_mid(120, 67, &FONT_XS, "TAP WITH THE TUG", G_PAPER);
         }
         if (fi.state == FS_AIM && fi.casts == 0)
-            text_mid(120, 72, &FONT_XS, "PRESS A KEY TO CAST THERE", G_PAPER);
+            text_mid(120, 67, &FONT_XS, "PRESS THE KEY UNDER A FISH", G_PAPER);
         if (fi.msg_ms && now - fi.msg_ms < 1400u && fi.state != FS_STAND && fi.state != FS_OVER) {
             int32_t w = text_w(&FONT_B, fi.msg) + 20;
             round_rect(120 - w / 2, 96, w, 26, 8, G_PAPER);
@@ -746,16 +771,16 @@ static void fish_draw(uint32_t now)
             text_cat(s, " ");
             text_cat(s, FI_LEVEL_NAME[fi.level - 1]);
             cv_text(94, 30, &FONT_B, s, G_INK);
-            cv_text(14, 58, &FONT_XS, "PRESS A KEY TO CAST YOUR LINE THERE.", G_PLANK2);
-            cv_text(14, 72, &FONT_XS, "WHEN THE FLOAT DIPS, PRESS ITS NOTE.", G_PLANK2);
-            cv_text(14, 86, &FONT_XS, "TAP IN TIME WITH THE TUG TO REEL IN.", G_PLANK2);
-            text_cat((s[0] = 0, s), "10 CASTS, 90 SECONDS");
+            cv_text(14, 56, &FONT_XS, "PRESS THE KEY UNDER A FISH TO CAST.", G_PLANK2);
+            cv_text(14, 70, &FONT_XS, "WHEN THE FLOAT DIPS, PLAY ITS NOTE.", G_PLANK2);
+            cv_text(14, 84, &FONT_XS, "TAP IN TIME WITH THE TUG TO REEL IN.", G_PLANK2);
+            cv_text(14, 98, &FONT_XS, "10 CASTS OR 90 SECONDS.", G_PLANK2);
             if (sav.more[SV_FISH].best) {
-                text_cat(s, ". BEST ");
+                text_cat((s[0] = 0, s), "BEST ");
                 wt_text(sav.more[SV_FISH].best, s);
                 text_cat(s, " KG");
+                cv_text(14, 118, &FONT_B, s, G_INK);
             }
-            cv_text(14, 116, &FONT_XS, s, G_INK);
         }
         if (fi.state == FS_OVER) {
             round_rect(40, 80, 160, 76, 8, G_PAPER);
@@ -787,6 +812,7 @@ static void fish_frame(uint32_t now)
         fi.last_ms = now;
         fish_swim(now, dt > 0.05f ? 0.05f : dt);
     }
+    fish_fanfare(now);
     fish_draw(now);
 }
 
@@ -829,8 +855,8 @@ static void fish_where(char *t)
         sp_num(t, sav.more[SV_FISH].level);
         text_cat(t, ", ");
         text_cat(t, FI_LEVEL_NAME[clamp(sav.more[SV_FISH].level, 1, FI_LEVELS) - 1]);
-        text_cat(t, ". PRESS A KEY TO CAST THERE. WHEN THE FLOAT DIPS, PRESS THE NOTE YOU HEAR. TAP IN TIME WITH THE "
-                    "TUG TO REEL IN. ");
+        text_cat(t, ". PRESS THE KEY UNDER A FISH TO CAST. WHEN THE FLOAT DIPS, PLAY THE NOTE YOU HEAR. TAP IN TIME "
+                    "WITH THE TUG TO REEL IN. TEN CASTS. ");
         if (sav.more[SV_FISH].best) {
             text_cat(t, "BEST ");
             wt_text(sav.more[SV_FISH].best, t);
@@ -860,7 +886,7 @@ static void fish_where(char *t)
             text_cat(t, ". ");
         }
     } else {
-        text_cat(t, "PRESS A KEY TO CAST. ");
+        text_cat(t, "PRESS THE KEY UNDER A FISH. ");
     }
     sp_num(t, fi.casts);
     text_cat(t, " OF 10 CASTS, ");
@@ -941,7 +967,7 @@ static void fish_host_ms(uint32_t now)
 static void fish_speak_dump(void)
 {
     static const char *const MSG[] = {
-        "TEN CASTS, PRESS A KEY TO CAST THERE", "HOOKED, REEL IN TIME WITH THE TUG", "WRONG NOTE, IT WAS C#4",
+        "TEN CASTS, PRESS THE KEY UNDER A FISH", "HOOKED, REEL IN TIME WITH THE TUG", "WRONG NOTE, IT WAS C#4",
         "TOO EARLY, IT SWAM OFF", "TOO LATE, IT TOOK THE BAIT", "NOTHING BITING, CAST OVER A FISH",
         "LANDED, 1.4 KILOS", "LANDED A BIG ONE, 3.2 KILOS", "SNAP, THE LINE BROKE, TAP STEADIER",
         "IT GOT AWAY, TAP WITH EVERY TUG", "EASY, THE LINE IS TIGHT", "TIME'S UP, 7.4 KILOS, 4 FISH",

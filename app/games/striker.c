@@ -47,14 +47,25 @@ static int sk_hi(void) { return sk_lo() + (sk.level == 1); }
 static int sk_level(void) { return clamp(sav.more[SV_STRIKER].level, 1, SK_LEVELS); }
 static int sk_standing(void) { return sk.state == SK_STAND || (sk.state == SK_FLY && sk.practice); }
 
-static void sk_target_text(char *t)      /* "7", "6 TO 7" */
+static void sk_target_text(char *t, int lo)   /* "7", "6 TO 7", "THE BELL" */
 {
     t[0] = 0;
-    sp_num(t, sk_lo());
+    if (lo >= 10) {
+        text_cat(t, "THE BELL");
+        return;
+    }
+    sp_num(t, lo);
     if (sk.level == 1) {
         text_cat(t, " TO ");
-        sp_num(t, sk_hi());
+        sp_num(t, lo + 1);
     }
+}
+
+static void sk_ask_text(char *t, int lo) /* "RING IT TO 7", "RING THE BELL" */
+{
+    t[0] = 0;
+    text_cat(t, lo >= 10 ? "RING " : "RING IT TO ");
+    sk_target_text(t + text_len(t), lo);
 }
 
 /* ------------------------------------------------------------------ meter --- */
@@ -133,7 +144,7 @@ static void sk_plan(void)                /* the round's targets: the bell asked 
 
 static void striker_go(void)
 {
-    char t[24] = "RING IT TO ";
+    char t[24];
     uint32_t now = plat_ms();
     rnd_state ^= now * 2654435761u;
     sk.level = sk_level();
@@ -145,7 +156,7 @@ static void striker_go(void)
     sk.landed = 1;
     sk.state = SK_READY;
     sk_meter_reset(now);
-    sk_target_text(t + text_len(t));
+    sk_ask_text(t, sk_lo());
     app_say("TEN STRIKES", t);
 }
 
@@ -250,7 +261,7 @@ static void sk_score(uint32_t now)       /* the puck at the top: how close, said
     if (sk.n < SK_STRIKES) {             /* and the next target */
         text_cat(b, ". NOW ");
         text_cat(b, sk.tg[sk.n] == sk.tg[sk.n - 1] && sk.level < 3 ? "AGAIN " : "");
-        sk_target_text(b + text_len(b));
+        sk_target_text(b + text_len(b), sk.tg[sk.n]);
     } else {
         text_cat(b, ". SCORE ");
         sp_num(b, sk.score);
@@ -280,9 +291,9 @@ static void sk_step(uint32_t now)        /* the meter and the puck, by time */
     sk.h = sk.v0 * t - 0.5f * SK_G * t * t;
     if (!sk.scored && t >= sk.v0 / SK_G)
         sk_score(now);
-    snd_lock();                          /* the whoosh: a tone that follows the puck, louder going up */
-    if (sk.h > 0.0f)
-        bw_tone(0, 4300 + (int)(sk.h * 24.0f), t < sk.v0 / SK_G ? 34 : 18);
+    snd_lock();                          /* the whoosh: a tone that follows the puck up, quiet from the top (the result
+                                          * rings out clear) */
+    bw_tone(0, 4300 + (int)(sk.h * 24.0f), sk.h > 0.0f && !sk.scored ? 34 : 0);
     snd_unlock();
     if (sk.h <= 0.0f && sk.scored) {     /* down again: the clack at the foot */
         sk.h = 0.0f;
@@ -355,6 +366,14 @@ static void striker_leave(void)
 /* ---------------------------------------------------------------- drawing --- */
 static int sk_mark_y(int m) { return SK_BASE - m * SK_STEP; }   /* the line at the top of mark m's band */
 
+static int sk_shown(void)                /* the target on the board and card: the one struck at, until the next is ready
+                                          * (so a result is never read against the next target) */
+{
+    if ((sk.state == SK_FLY || sk.state == SK_WAIT) && sk.scored && sk.n > 0)
+        return sk.tg[sk.n - 1];
+    return sk_lo();
+}
+
 static void sk_board(uint32_t now)       /* the tower: posts with bulbs, the marks, the wire, the meter, the bell */
 {
     int m, lo = 0, hi = -1, i;
@@ -362,12 +381,8 @@ static void sk_board(uint32_t now)       /* the tower: posts with bulbs, the mar
     int win = flash && sk.off == 0 && !sk.practice;
     char s[4];
     if (sk.state == SK_READY || sk.state == SK_WAIT || (sk.state == SK_FLY && !sk.practice)) {
-        lo = sk_lo();
-        hi = sk_hi();
-        if (sk.state == SK_WAIT && sk.n < SK_STRIKES && !flash) {   /* between strikes: the next one's */
-            lo = sk.tg[sk.n];
-            hi = lo + (sk.level == 1);
-        }
+        lo = sk_shown();
+        hi = lo + (sk.level == 1);
     }
     cv_rect(SK_X - 22, 48, 4, SK_BASE - 48 + 6, G_WHEEL);   /* the posts */
     cv_rect(SK_X + 18, 48, 4, SK_BASE - 48 + 6, G_WHEEL);
@@ -463,6 +478,7 @@ static void sk_sky(int32_t y0)
 static void sk_play_card(uint32_t now)
 {
     char s[32];
+    int bell;
     const int32_t x = 84, w = 148;
     round_rect(x, 26, w, 104, 8, G_PAPER);
     if (sk.state == SK_OVER) {           /* the end card */
@@ -470,26 +486,39 @@ static void sk_play_card(uint32_t now)
         text_cat((s[0] = 0, s), "SCORE ");
         sp_num(s, sk.score);
         text_mid(x + w / 2, 52, &FONT_M, s, G_INK);
-        text_cat((s[0] = 0, s), "ON THE MARK ");
+        s[0] = 0;
         sp_num(s, sk.exact);
+        text_cat(s, " ON THE MARK");
         if (sk.rung) {
-            text_cat(s, ", RUNG ");
+            text_cat(s, ", ");
             sp_num(s, sk.rung);
+            text_cat(s, sk.rung == 1 ? " BELL" : " BELLS");
         }
         text_mid(x + w / 2, 82, &FONT_XS, s, G_PLANK2);
-        text_mid(x + w / 2, 102, &FONT_B, sk.new_best ? "NEW BEST!" : "", G_RED);
+        if (sk.new_best) {
+            text_mid(x + w / 2, 102, &FONT_B, "NEW BEST!", G_RED);
+        } else {
+            text_cat((s[0] = 0, s), "BEST ");
+            sp_num(s, sav.more[SV_STRIKER].best);
+            text_mid(x + w / 2, 104, &FONT_XS, s, G_INK);
+        }
         return;
     }
     {                                    /* the target */
-        int lo = sk.state == SK_WAIT && sk.n < SK_STRIKES ? sk.tg[sk.n] : sk_lo();
-        cv_text(x + 10, 32, &FONT_XS, lo + (sk.level == 1) >= 10 ? "RING THE BELL" : "RING IT TO", G_PLANK2);
+        int lo = sk_shown();
+        cv_text(x + 10, 32, &FONT_XS, lo >= 10 ? "RING THE" : "RING IT TO", G_PLANK2);
         s[0] = 0;
-        sp_num(s, lo);
-        if (sk.level == 1) {
-            text_cat(s, "-");
-            sp_num(s, lo + 1);
+        if (lo >= 10) {
+            text_cat(s, "BELL");
+        } else {
+            sp_num(s, lo);
+            if (sk.level == 1) {
+                text_cat(s, "-");
+                sp_num(s, lo + 1);
+            }
         }
         cv_text(x + 10, 46, &FONT_L, s, G_TEAL);
+        bell = lo + (sk.level == 1) >= 10;
     }
     cv_text(x + w - 10 - text_w(&FONT_XS, "STRIKE"), 32, &FONT_XS, "STRIKE", G_PLANK2);
     s[0] = 0;
@@ -504,8 +533,11 @@ static void sk_play_card(uint32_t now)
         sp_num(s, sk.pts);
         cv_text(x + 10, 94, &FONT_M, s, sk.off == 0 ? G_RED : sk.pts ? G_ORANGE : G_MUTE);
         cv_text(x + 16 + text_w(&FONT_M, s), 100, &FONT_B, w2, sk.off == 0 ? G_RED : G_INK);
+    } else if (bell) {                   /* the bell asked: its bonus */
+        cv_text(x + 10, 98, &FONT_XS, "THE BELL IS WORTH", G_PLANK2);
+        cv_text(x + 10, 110, &FONT_XS, "5 MORE!", G_RED);
     } else if (sk.state == SK_READY && sk.n == 0) {
-        cv_text(x + 10, 98, &FONT_XS, "A KEY STRIKES AS THE", G_PLANK2);
+        cv_text(x + 10, 98, &FONT_XS, "PRESS ANY KEY AS THE", G_PLANK2);
         cv_text(x + 10, 110, &FONT_XS, "POINTER PASSES THE MARK", G_PLANK2);
     }
 }
@@ -515,7 +547,7 @@ static void sk_stand_card(void)
     char s[24];
     const int32_t x = 84, w = 148;
     int lv = sk_level();
-    round_rect(x, 26, w, 136, 8, G_PAPER);
+    round_rect(x, 26, w, 120, 8, G_PAPER);   /* clear of the mallet's swing below */
     cv_text(x + 8, 34, &FONT_XS, "K1 LEVEL", G_PLANK2);
     s[0] = 0;
     sp_num(s, lv);
@@ -524,17 +556,16 @@ static void sk_stand_card(void)
     cv_text(x + 58, 32, &FONT_B, s, G_INK);
     cv_text(x + 8, 50, &FONT_XS, lv == 1 ? "SLOW, A BAND OF TWO" : lv == 2 ? "FASTER, ONE MARK" :
                                  "IT SPEEDS AND SLOWS", G_TEAL);
-    cv_text(x + 8, 72, &FONT_XS, "THE POINTER SWINGS UP", G_PLANK2);
-    cv_text(x + 8, 86, &FONT_XS, "AND DOWN. A KEY STRIKES:", G_PLANK2);
-    cv_text(x + 8, 100, &FONT_XS, "THE PUCK GOES UP TO IT.", G_PLANK2);
-    cv_text(x + 8, 114, &FONT_XS, "RING IT TO THE MARK ASKED.", G_PLANK2);
+    cv_text(x + 8, 70, &FONT_XS, "PRESS ANY KEY AS THE", G_PLANK2);
+    cv_text(x + 8, 84, &FONT_XS, "POINTER PASSES THE MARK.", G_PLANK2);
+    cv_text(x + 8, 98, &FONT_XS, "TRY ONE NOW!", G_PLANK2);
     s[0] = 0;
     text_cat(s, "10 STRIKES");
     if (sav.more[SV_STRIKER].best) {
         text_cat(s, ". BEST ");
         sp_num(s, sav.more[SV_STRIKER].best);
     }
-    cv_text(x + 8, 138, &FONT_B, s, G_INK);
+    cv_text(x + 8, 120, &FONT_B, s, G_INK);
 }
 
 static void striker_draw(uint32_t now)
@@ -613,8 +644,7 @@ static void striker_where(char *t)
         sp_num(t, lv);
         text_cat(t, ", ");
         text_cat(t, SK_LEVEL_NAME[lv - 1]);
-        text_cat(t, ". THE POINTER SWINGS UP AND DOWN, ANY KEY STRIKES AND THE PUCK GOES UP TO IT. RING IT TO THE "
-                    "MARK ASKED. ");
+        text_cat(t, ". PRESS ANY KEY AS THE POINTER PASSES THE MARK ASKED. THE BELL IS WORTH 5 MORE. ");
         if (sav.more[SV_STRIKER].best) {
             text_cat(t, "BEST ");
             sp_num(t, sav.more[SV_STRIKER].best);
@@ -626,21 +656,20 @@ static void striker_where(char *t)
     if (sk.state == SK_OVER) {
         text_cat(t, "STRIKER. TEN STRIKES, SCORE ");
         sp_num(t, sk.score);
-        text_cat(t, ". ON THE MARK ");
+        text_cat(t, ". ");
         sp_num(t, sk.exact);
-        text_cat(t, sk.new_best ? ". NEW BEST. PLAY STARTS AGAIN." : ". PLAY STARTS AGAIN.");
+        text_cat(t, " ON THE MARK");
+        if (sk.new_best) {
+            text_cat(t, ". NEW BEST");
+        } else if (sav.more[SV_STRIKER].best) {
+            text_cat(t, ". BEST ");
+            sp_num(t, sav.more[SV_STRIKER].best);
+        }
+        text_cat(t, ". PLAY STARTS AGAIN.");
         return;
     }
-    text_cat(t, "STRIKER. RING IT TO ");
-    if (sk.state == SK_WAIT && sk.n < SK_STRIKES) {
-        sp_num(t, sk.tg[sk.n]);
-        if (sk.level == 1) {
-            text_cat(t, " TO ");
-            sp_num(t, sk.tg[sk.n] + 1);
-        }
-    } else {
-        sk_target_text(t + text_len(t));
-    }
+    text_cat(t, "STRIKER. ");
+    sk_ask_text(t + text_len(t), sk.state == SK_WAIT && sk.n < SK_STRIKES ? sk.tg[sk.n] : sk_lo());
     text_cat(t, ". STRIKE ");
     sp_num(t, sk.n < SK_STRIKES ? sk.n + 1 : SK_STRIKES);
     text_cat(t, " OF 10, SCORE ");
@@ -705,8 +734,8 @@ static void striker_speak_dump(void)
     int i, keep_level = sav.more[SV_STRIKER].level;
     uint16_t keep_best = sav.more[SV_STRIKER].best;
     static const char *const MSG[][2] = {
-        {"TEN STRIKES", "RING IT TO 7"}, {"TEN STRIKES", "RING IT TO 6 TO 7"},
-        {"UP TO 7, ON THE MARK", "10 POINTS. NOW AGAIN 7"}, {"UP TO 6, ONE OFF", "6 POINTS. NOW 8"},
+        {"TEN STRIKES", "RING IT TO 7"}, {"TEN STRIKES", "RING IT TO 6 TO 7"}, {"TEN STRIKES", "RING THE BELL"},
+        {"UP TO 7, ON THE MARK", "10 POINTS. NOW AGAIN 7"}, {"UP TO 6, ONE OFF", "6 POINTS. NOW THE BELL"},
         {"UP TO 5, TWO OFF", "3 POINTS. NOW 9 TO 10"}, {"UP TO 2, MISSED", "0 POINTS. NOW 4"},
         {"THE BELL, RUNG", "15 POINTS. SCORE 72, NEW BEST"}, {"THE BELL, ONE OFF", "6 POINTS. SCORE 40"},
         {"UP TO 4", ""}, {"THE BELL", ""}, {"STOPPED", ""}};

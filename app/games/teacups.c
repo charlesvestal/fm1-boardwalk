@@ -464,25 +464,22 @@ static void teacups_draw(uint32_t now)
         } else if (tc.state == TC_OVER) {
             text_cat(s, "SCORE ");
             int_text(tc.score, s + 6);
-        } else {
-            text_cat(s, "LEVEL ");
-            int_text(tc_lv() + 1, s + 6);
+        } else if (sav.more[SV_TEACUPS].best) {
+            text_cat(s, "BEST ");
+            int_text(sav.more[SV_TEACUPS].best, s + 5);
         }
         cv_text(234 - text_w(&FONT_XS, s), 3, &FONT_XS, s, G_PAPER);
         if (tc.state == TC_STAND) {
-            round_rect(14, 56, 212, 98, 8, G_PAPER);
-            cv_text(24, 64, &FONT_XS, "K1 LEVEL", G_PLANK2);
+            round_rect(14, 30, 212, 74, 8, G_PAPER);   /* above your cup, so it shows (its best is up top) */
+            cv_text(24, 38, &FONT_XS, "K1 LEVEL", G_PLANK2);
             int_text(tc_lv() + 1, s);
-            cv_text(94, 62, &FONT_B, s, G_INK);
-            cv_text(110, 64, &FONT_XS, TC_LEVEL_WORD[tc_lv()], G_PLANK2);
-            cv_text(24, 88, &FONT_XS, "TAP ANY KEY ON THE BEAT TO SPIN.", G_PLANK2);
-            cv_text(24, 102, &FONT_XS, "OFF THE BEAT YOUR CUP WOBBLES.", G_PLANK2);
-            cv_text(24, 116, &FONT_XS, "HOLD TOP SPEED FOR 60 SECONDS.", G_PLANK2);
-            if (sav.more[SV_TEACUPS].best) {
-                text_cat((s[0] = 0, s), "BEST ");
-                int_text(sav.more[SV_TEACUPS].best, s + 5);
-                cv_text(24, 132, &FONT_B, s, G_INK);
-            }
+            cv_text(94, 36, &FONT_B, s, G_INK);
+            cv_text(110, 38, &FONT_XS, TC_LEVEL_WORD[tc_lv()], G_PLANK2);
+            cv_text(24, 60, &FONT_XS, tc_lv() == 0 ? "TAP ANY KEY ON EACH BAR'S FIRST" :
+                                                      "TAP ANY KEY ON EVERY BEAT TO SPIN.", G_PLANK2);
+            cv_text(24, 74, &FONT_XS, tc_lv() == 0 ? "BEAT TO SPIN. OTHER TAPS WOBBLE." :
+                                                      "OFF THE BEAT YOUR CUP WOBBLES.", G_PLANK2);
+            cv_text(24, 88, &FONT_XS, "STAY AT TOP SPEED TO SCORE.", G_PLANK2);
         } else {
             round_rect(6, 52, 68, 52, 6, G_PAPER);   /* the time held at the top */
             cv_text(14, 56, &FONT_XS, "AT THE TOP", G_PLANK2);
@@ -507,9 +504,10 @@ static void teacups_draw(uint32_t now)
                     round_rect(120 - text_w(&FONT_B, w) / 2 - 6, 54, text_w(&FONT_B, w) + 12, 22, 6, G_PAPER);
                     text_mid(120, 57, &FONT_B, w, c);
                 }
-                {                        /* the bar's three beats: the ones to tap ringed, the one now lit */
-                    int32_t i, b = t < 0 ? -1 : t / tc.beat;
-                    int on = t >= 0 && t % tc.beat < 140;
+                {                        /* the bar's three beats: the ones to tap ringed, the one now lit (the
+                                          * bar before counts in) */
+                    int32_t i, b = t < -3 * tc.beat ? -1 : (t + 3 * tc.beat) / tc.beat;
+                    int on = b >= 0 && (t + 3 * tc.beat) % tc.beat < 140;
                     for (i = 0; i < 3; i++) {
                         int32_t x = 104 + i * 16;
                         int tap = tc.level > 0 || i == 0;
@@ -519,18 +517,18 @@ static void teacups_draw(uint32_t now)
                     }
                 }
             } else {                     /* the ride over */
-                round_rect(36, 112, 168, 88, 8, G_PAPER);
-                text_mid(120, 118, &FONT_B, "RIDE OVER", G_RED);
+                round_rect(36, 104, 168, 88, 8, G_PAPER);   /* over the riders' hats, not under them */
+                text_mid(120, 110, &FONT_B, "RIDE OVER", G_RED);
                 text_cat((s[0] = 0, s), "SCORE ");
                 int_text(tc.score, s + 6);
-                text_mid(120, 138, &FONT_B, s, G_INK);
+                text_mid(120, 130, &FONT_B, s, G_INK);
                 text_cat((s[0] = 0, s), "TOP ");
                 tc_tenths(tc.top_ms, s + 4);
                 text_cat(s, " S, PEAK ");
                 int_text((int32_t)(tc.peak + 0.5f), s + text_len(s));
                 text_cat(s, "%");
-                text_mid(120, 160, &FONT_XS, s, G_PLANK2);
-                text_mid(120, 178, &FONT_XS, tc.new_best ? "NEW BEST!" : "", G_RED);
+                text_mid(120, 152, &FONT_XS, s, G_PLANK2);
+                text_mid(120, 170, &FONT_XS, tc.new_best ? "NEW BEST!" : "", G_RED);
             }
         }
         cv_rect(0, 220, 240, 20, G_LILAC);
@@ -639,9 +637,9 @@ static void teacups_where(char *t)
         sp_num(t, tc_lv() + 1);
         text_cat(t, ", ");
         text_cat(t, TC_LEVEL_WORD[tc_lv()]);
-        text_cat(t, tc_lv() == 0 ? ". TAP ANY KEY ON THE FIRST BEAT OF EACH BAR TO SPIN YOUR CUP. " :
-                                   ". TAP ANY KEY ON EVERY BEAT TO SPIN YOUR CUP. ");
-        text_cat(t, "OFF THE BEAT IT WOBBLES. HOLD TOP SPEED. ");
+        text_cat(t, tc_lv() == 0 ? ". TAP ANY KEY ON THE FIRST BEAT OF EACH BAR TO SPIN YOUR CUP. OTHER TAPS WOBBLE IT. " :
+                                   ". TAP ANY KEY ON EVERY BEAT TO SPIN YOUR CUP. OFF THE BEAT IT WOBBLES. ");
+        text_cat(t, "STAY AT TOP SPEED TO SCORE. ");
         if (sav.more[SV_TEACUPS].best) {
             text_cat(t, "BEST ");
             sp_num(t, sav.more[SV_TEACUPS].best);

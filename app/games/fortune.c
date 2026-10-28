@@ -80,6 +80,7 @@ static struct {
     uint8_t q[FO_MAX];                   /* MIDI */
     int idx, lucky;                      /* the answer: its card, its lucky note (MIDI) */
     uint32_t key_ms;                     /* a note asked: his eyes flicker */
+    uint32_t nudge_ms;                   /* PLAY with no question: the slip shakes (0 never) */
     uint32_t t0;                         /* PLAY: the answer's clock */
     int32_t card_at, end_at;             /* ms after t0: the card slides out; the answer over */
     int said, mark;                      /* the card read out; a card remembered (the tests) */
@@ -299,12 +300,14 @@ static void fortune_button(int b, int down)
         return;
     if (fo.state == FS_CARD) {
         fortune_clear();
-        app_say("ASK AGAIN", "PLAY UP TO 8 NOTES");
+        app_say("ASK AGAIN", "UP TO 8 NOTES, THEN PRESS PLAY");
     } else if (fo.state == FS_ASK) {
-        if (fo.n)
+        if (fo.n) {
             fortune_ask();
-        else
-            app_say("PLAY A FEW NOTES FIRST", "THEN PLAY");
+        } else {
+            fo.nudge_ms = plat_ms() | 1u;
+            app_say("PLAY A FEW NOTES FIRST", "THEN PRESS PLAY");
+        }
     }
 }
 
@@ -363,8 +366,12 @@ static void fortune_step(uint32_t now)   /* the answer's stages, by its clock */
         fo_said(said);
         app_say(said, "");
     }
-    if (fo.state == FS_ANSWER && t >= fo.end_at)
+    if (fo.state == FS_ANSWER && t >= fo.end_at) {
         fo.state = FS_CARD;
+        snd_lock();                      /* the lucky note, on its own once the tune is over */
+        fo_play(fo.lucky, 95);
+        snd_unlock();
+    }
 }
 
 /* ----------------------------------------------------------------- drawing --- */
@@ -561,9 +568,12 @@ static void fortune_draw(uint32_t now)
         cv_rect(30, FO_SLIT - 1, 180, 4, G_SCREEN);
         cv_rect(30, FO_SLIT - 2, 180, 1, FO_BRASS_D);
         if (out < FO_CARD_H) {
-            round_rect(46, 167, 148, 28, 4, G_PAPER2);
-            if (!fo.n) {
-                text_mid(120, 175, &FONT_XS, "ASK WITH UP TO 8 NOTES", G_MUTE);
+            uint32_t nd = fo.nudge_ms && !fo.n ? now - fo.nudge_ms : 9999u;   /* PLAY too soon: a shake */
+            int32_t jx = nd < 400u ? (nd / 50u & 1u ? 3 : -3) : 0;
+            round_rect(36 + jx, 167, 168, 28, 4, G_PAPER2);
+            if (!fo.n) {                 /* how to ask */
+                text_mid(120 + jx, 169, &FONT_XS, "ASK WITH UP TO 8 NOTES,", nd < 900u ? G_RED : G_INK);
+                text_mid(120 + jx, 182, &FONT_XS, "THEN PRESS PLAY.", nd < 900u ? G_RED : G_INK);
             } else {
                 int line;
                 for (line = 0; line < 2 && line * 4 < fo.n; line++) {
@@ -573,7 +583,7 @@ static void fortune_draw(uint32_t now)
                             text_cat(s, "  ");
                         note_text(fo.q[i], s + text_len(s));
                     }
-                    text_mid(120, fo.n > 4 ? 168 + line * 13 : 175, &FONT_XS, s, G_INK);
+                    text_mid(120, fo.n > 4 ? 169 + line * 13 : 175, &FONT_XS, s, G_INK);
                 }
             }
         }
@@ -597,7 +607,7 @@ static void fortune_draw(uint32_t now)
         }
         cv_rect(0, 220, 240, 20, G_LILAC);
         s[0] = 0;
-        text_cat(s, "K1 ");
+        text_cat(s, "K1 VOICE: ");
         text_cat(s, FO_VOICE[fo_voice()]);
         cv_text(8, 224, &FONT_XS, s, G_PLANK2);
         {
@@ -660,7 +670,7 @@ static void fortune_where(char *t)
     int i;
     t[0] = 0;
     if (fo.state == FS_ASK) {
-        text_cat(t, "FORTUNE. BARNABY BRASS THE SEER. ");
+        text_cat(t, "FORTUNE. BARNABY BRASS, THE SEER. ");
         if (fo.n) {
             text_cat(t, "YOUR QUESTION ");
             for (i = 0; i < fo.n; i++) {
@@ -670,13 +680,16 @@ static void fortune_where(char *t)
             }
             text_cat(t, ". PLAY ASKS. ");
         } else {
-            text_cat(t, "ASK BY PLAYING UP TO 8 NOTES, THEN PLAY. ");
+            text_cat(t, "ASK WITH UP TO 8 NOTES, THEN PRESS PLAY. ");
         }
         text_cat(t, "KNOB 1, VOICE ");
         text_cat(t, FO_VOICE[fo_voice()]);
-        text_cat(t, ". ");
-        sp_num(t, sav.more[SV_FORTUNE].best);
-        text_cat(t, " FORTUNES TOLD.");
+        text_cat(t, ".");
+        if (sav.more[SV_FORTUNE].best) {
+            text_cat(t, " ");
+            sp_num(t, sav.more[SV_FORTUNE].best);
+            text_cat(t, sav.more[SV_FORTUNE].best == 1 ? " FORTUNE TOLD." : " FORTUNES TOLD.");
+        }
         return;
     }
     if (fo.state != FS_CARD) {
@@ -763,8 +776,8 @@ static void fortune_speak_dump(void)
         sp_out("MSG", sp_buf);
     }
     sp_out("MSG", "BARNABY LOOKS INTO THE BALL");
-    sp_out("MSG", (sp_join("ASK AGAIN", "PLAY UP TO 8 NOTES"), sp_buf));
-    sp_out("MSG", (sp_join("PLAY A FEW NOTES FIRST", "THEN PLAY"), sp_buf));
+    sp_out("MSG", (sp_join("ASK AGAIN", "UP TO 8 NOTES, THEN PRESS PLAY"), sp_buf));
+    sp_out("MSG", (sp_join("PLAY A FEW NOTES FIRST", "THEN PRESS PLAY"), sp_buf));
     fo.n = keep_n;
     fo.state = keep_state;
     fo.idx = keep_idx;

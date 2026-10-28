@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: MPL-2.0
  * Copyright (C) 2026 Charles Vestal */
-/* Balloons: the balloon pump at the fairground stall. Hold a key (the lit middle ones are the pump's) and the balloon
- * on the nozzle blows up; let go to tie it off. A dashed ring shows the size wanted, and its note plays as each balloon
+/* Balloons: the balloon pump at the fairground stall. Hold any key (the lit middle ones are the pump's pad) and the
+ * balloon on the nozzle blows up; let go to tie it off. A dashed ring shows the size wanted, and its note plays as each balloon
  * goes on the nozzle; the balloon's stretch sings higher as it grows, reaching that note at the ring. Scored on how
  * close it came (10 dead on, then 6, 3, 1). Past the ring is a pop point you cannot see, a different one each time: as
  * it nears, the balloon wobbles and squeaks. Ten balloons a round; the tied ones float up to the string along the top.
@@ -15,13 +15,14 @@
 #define BLN_N 10                         /* balloons a round */
 #define BLN_LEVELS 3
 #define BLN_KNOT_Y 188                   /* the knot, on the nozzle */
-#define BLN_X 128                        /* the nozzle's x */
+#define BLN_X 150                        /* the nozzle's x: right of middle, so the result card fits beside it */
 #define BLN_EMPTY 6.0f                   /* a balloon on the nozzle, flat */
 #define BLN_TIE_MIN 13.0f                /* let go below this: still on the nozzle, nothing tied */
 #define BLN_GARLAND_Y 60                 /* the string along the top */
 #define BLN_PAD_LO 7                     /* the pad: the white keys C4..C5 */
 #define BLN_PAD_HI 19
-#define BLN_TIED_MS 1300u                /* a result on screen before the next balloon */
+#define BLN_TIED_MS 1400u                /* a result on screen before the next balloon */
+#define BLN_HOLD_MS 550u                 /* a tied one kept on the nozzle, by its ring, before it floats up */
 
 enum { BLN_STAND, BLN_PLAY, BLN_OVER };
 enum { BLN_WAIT, BLN_PUMP, BLN_TIED, BLN_POPPED };
@@ -36,6 +37,7 @@ static struct {
     int too_big;                         /* the last one, past the ring */
     uint32_t keys;                       /* keys held */
     uint32_t phase_ms, squeak_ms, ref_ms, confetti_ms;
+    int fan;                             /* the round's closing notes played so far */
     float from_x, from_y, from_r;        /* a tied balloon on its way up */
     uint8_t col0;                        /* the round's first colour */
     uint8_t slot[BLN_N];                 /* the string: 0 empty, 1 tied, 2 a scrap (popped) */
@@ -110,17 +112,22 @@ static void balloon_go(void)
         bln.slot[i] = 0;
     bln.state = BLN_PLAY;
     bln_next(now);
-    app_say("TEN BALLOONS", "HOLD A LIT KEY TO PUMP");
+    app_say("TEN BALLOONS", "HOLD ANY KEY TO PUMP");
 }
 
 static void bln_end(void)
 {
     char t[16] = "SCORE ";
     bln.state = BLN_OVER;
+    bln.phase_ms = plat_ms();            /* now the end's: the closing notes, the confetti */
+    bln.fan = 0;
     bln.new_best = bln.score > sav.more[SV_BALLOON].best;
     if (bln.new_best) {
         sav.more[SV_BALLOON].best = (uint16_t)bln.score;
         save_dirty();
+        bln.from_x = 127.0f;             /* confetti from behind the card's top */
+        bln.from_y = 80.0f;
+        bln.confetti_ms = bln.phase_ms;
     }
     int_text(bln.score, t + 6);
     app_say(bln.new_best ? "ROUND OVER. NEW BEST" : "ROUND OVER", t);
@@ -177,17 +184,17 @@ static void bln_tie(uint32_t now)        /* let go: tied off, scored */
     bln.from_y = (float)BLN_KNOT_Y - bln_ry(bln.r);
     snd_lock();
     bw_tone(0, bln_cents(bln.r), 0);
-    bw_note(50, 95, BW_BASS);            /* the tie's boing */
-    bw_note(62, 60, BW_PLUCK);
+    bw_note(50, kind < 4 ? 60 : 85, BW_BASS);   /* the tie's boing: kept under the chimes when it scores */
+    bw_note(62, 40, BW_PLUCK);
     if (kind == 0) {                     /* dead on: a sparkle */
-        bw_note(79, 75, BW_CHIME);
-        bw_note(84, 65, BW_CHIME);
-        bw_note(88, 60, BW_CHIME);
+        bw_note(79, 95, BW_CHIME);
+        bw_note(84, 85, BW_CHIME);
+        bw_note(88, 80, BW_CHIME);
     } else if (kind == 1) {
-        bw_note(79, 70, BW_CHIME);
-        bw_note(84, 60, BW_CHIME);
+        bw_note(79, 85, BW_CHIME);
+        bw_note(84, 75, BW_CHIME);
     } else if (kind < 4) {
-        bw_note(kind == 2 ? 76 : 72, 60, BW_CHIME);
+        bw_note(kind == 2 ? 76 : 72, 75, BW_CHIME);
     } else {
         bw_note(48, 80, BW_DUD);
     }
@@ -488,11 +495,9 @@ static void balloon_draw(uint32_t now)
         for (y = 18; y < 198; y += 2)    /* the golden-hour sky behind the stall */
             cv_rect(0, y, 240, 2, mix(G_SKY0, G_SKY2, (y - 18) * 256 / 180));
         cv_rect(210, 70, 22, 126, G_PLANK2);   /* the stall's post, and its price board */
-        if (bln.state != BLN_STAND) {
-            round_rect(196, 164, 42, 28, 4, G_PAPER);
-            text_mid(217, 166, &FONT_XS, "10 FOR", G_INK);
-            text_mid(217, 178, &FONT_XS, "A TIE", G_RED);
-        }
+        round_rect(196, 164, 42, 28, 4, G_PAPER);
+        text_mid(217, 166, &FONT_XS, "10 FOR", G_INK);
+        text_mid(217, 178, &FONT_XS, "A TIE", G_RED);
         bln_awning();
         bln_garland(now);
         bln_stall(now);
@@ -505,25 +510,40 @@ static void balloon_draw(uint32_t now)
             int_text(bln.score, s + text_len(s));
             cv_text(234 - text_w(&FONT_XS, s), 3, &FONT_XS, s, G_PAPER);
         }
-        if (bln.state == BLN_STAND) {
-            round_rect(14, 72, 212, 112, 8, G_PAPER);
-            cv_text(24, 80, &FONT_XS, "K1 LEVEL", G_PLANK2);
+        if (bln.state == BLN_STAND) {   /* the card above, and a balloon waiting on the nozzle below it */
+            bln_balloon(BLN_X, BLN_KNOT_Y - (int32_t)bln_ry(13.0f), 13.0f, bln_col(0));
+            round_rect(14, 40, 212, 94, 8, G_PAPER);
+            cv_text(24, 48, &FONT_XS, "K1 LEVEL", G_PLANK2);
             int_text(clamp(sav.more[SV_BALLOON].level, 1, BLN_LEVELS), s);
             text_cat(s, " ");
             text_cat(s, BLN_LEVEL_NAME[clamp(sav.more[SV_BALLOON].level, 1, BLN_LEVELS) - 1]);
-            cv_text(104, 78, &FONT_B, s, G_INK);
-            cv_text(24, 104, &FONT_XS, "HOLD A LIT KEY TO PUMP IT UP.", G_PLANK2);
-            cv_text(24, 118, &FONT_XS, "LET GO AT THE RING TO TIE IT.", G_PLANK2);
-            cv_text(24, 132, &FONT_XS, sav.more[SV_BALLOON].level == 2 ? "IT SURGES. TOO FAR AND IT POPS!" :
-                                       sav.more[SV_BALLOON].level == 3 ? "FASTER, AND IT POPS SOONER!" :
-                                                                         "TOO FAR AND IT POPS!", G_PLANK2);
+            cv_text(104, 46, &FONT_B, s, G_INK);
+            cv_text(24, 70, &FONT_XS, "HOLD ANY KEY TO PUMP IT UP.", G_PLANK2);
+            cv_text(24, 84, &FONT_XS, "LET GO AT THE RING TO TIE IT.", G_PLANK2);
+            cv_text(24, 98, &FONT_XS, sav.more[SV_BALLOON].level == 2 ? "IT SURGES. TOO FAR AND IT POPS!" :
+                                      sav.more[SV_BALLOON].level == 3 ? "FASTER, AND IT POPS SOONER!" :
+                                                                        "TOO FAR AND IT POPS!", G_PLANK2);
             s[0] = 0;
             text_cat(s, "10 BALLOONS");
             if (sav.more[SV_BALLOON].best) {
                 text_cat(s, ". BEST ");
                 int_text(sav.more[SV_BALLOON].best, s + text_len(s));
             }
-            cv_text(24, 156, &FONT_B, s, G_INK);
+            cv_text(24, 112, &FONT_B, s, G_INK);
+        } else if (bln.state == BLN_OVER) {   /* the string full (or not); the card; confetti for a new best */
+            bln_confetti(now);
+            round_rect(52, 76, 150, 84, 8, G_PAPER);
+            text_mid(127, 82, &FONT_B, "ROUND OVER", G_RED);
+            text_cat((s[0] = 0, s), "SCORE ");
+            int_text(bln.score, s + 6);
+            text_mid(127, 104, &FONT_B, s, G_INK);
+            s[0] = 0;
+            int_text(bln.tied, s);
+            text_cat(s, " TIED, ");
+            int_text(bln.popped, s + text_len(s));
+            text_cat(s, " POPPED");
+            text_mid(127, 126, &FONT_XS, s, G_PLANK2);
+            text_mid(127, 140, &FONT_XS, bln.new_best ? "NEW BEST!" : "", G_RED);
         } else {
             uint16_t c = bln_col(bln.n);
             if (bln.phase == BLN_WAIT || bln.phase == BLN_PUMP) {
@@ -538,11 +558,12 @@ static void balloon_draw(uint32_t now)
                 bln_balloon(cx, cy, r + wob, c);
                 bln_ring(BLN_X, BLN_KNOT_Y - (int32_t)bln_ry(bln.target), bln.target,
                          r > bln.target - 1.0f ? G_PAPER : G_INK);
-                if (bln.phase == BLN_WAIT && (now / 400u & 1u))
-                    text_mid(BLN_X, 120 - (int32_t)bln_ry(bln.target) - 14 > 72 ?
-                                 120 - (int32_t)bln_ry(bln.target) - 14 : 76, &FONT_XS, "HOLD A LIT KEY", G_INK);
-            } else if (bln.phase == BLN_TIED) {   /* tied: a moment on the nozzle, then up to the string */
-                float u = pt < 250u ? 0.0f : (float)(pt - 250u) / 850.0f;
+                if (bln.phase == BLN_WAIT && (now / 400u & 1u)) {   /* over the ring, under the string */
+                    int32_t ty = BLN_KNOT_Y - 2 * (int32_t)bln_ry(bln.target) - 16;
+                    text_mid(BLN_X, ty > 78 ? ty : 78, &FONT_XS, "HOLD ANY KEY", G_INK);
+                }
+            } else if (bln.phase == BLN_TIED) {   /* tied: a moment on the nozzle by its ring, then up to the string */
+                float u = pt < BLN_HOLD_MS ? 0.0f : (float)(pt - BLN_HOLD_MS) / 750.0f;
                 int32_t sx = 12 + bln.n * 24, gu = sx % 48, sy = BLN_GARLAND_Y + gu * (48 - gu) / 96 - 18;
                 float r;
                 u = u > 1.0f ? 1.0f : u;
@@ -551,6 +572,9 @@ static void balloon_draw(uint32_t now)
                 bln_balloon((int32_t)(bln.from_x + ((float)sx - bln.from_x) * u),
                             (int32_t)(bln.from_y + ((float)sy - bln.from_y) * u) + (pt < 250u ? (int32_t)(pt / 60u & 1u) : 0),
                             r, c);
+                if (pt < BLN_HOLD_MS)             /* how close it came */
+                    bln_ring(BLN_X, BLN_KNOT_Y - (int32_t)bln_ry(bln.target), bln.target,
+                             bln.last_pts == 10 ? G_TEAL : bln.r > bln.target - 1.0f ? G_PAPER : G_INK);
                 if (u < 1.0f)
                     cv_line((int32_t)(bln.from_x + ((float)sx - bln.from_x) * u),
                             (int32_t)(bln.from_y + ((float)sy - bln.from_y) * u + bln_ry(r)),
@@ -571,10 +595,10 @@ static void balloon_draw(uint32_t now)
                     ring_circle(BLN_X, cy, (int32_t)bln.r + (int32_t)(pt / 8u), G_PAPER);
                 cv_rect(BLN_X - 2, BLN_KNOT_Y - 3, 5, 3, mix(c, G_INK, 60));   /* the knot left on the nozzle */
             }
-            if (bln.phase == BLN_TIED || bln.phase == BLN_POPPED) {   /* the result */
+            if (bln.phase == BLN_TIED || bln.phase == BLN_POPPED) {   /* the result, left of the nozzle */
                 const char *w = bln_result();
-                round_rect(52, 92, 136, 44, 8, G_PAPER);
-                text_mid(120, 96, &FONT_B, bln.phase == BLN_POPPED ? "POP!" : w,
+                round_rect(6, 86, 96, 44, 8, G_PAPER);
+                text_mid(54, 90, &FONT_B, bln.phase == BLN_POPPED ? "POP!" : w,
                          bln.phase == BLN_POPPED || bln.last_pts == 0 ? G_RED : bln.last_pts == 10 ? G_TEAL : G_INK);
                 s[0] = 0;
                 if (bln.last_pts > 0) {
@@ -583,21 +607,7 @@ static void balloon_draw(uint32_t now)
                 } else {
                     text_cat(s, "NO POINTS");
                 }
-                text_mid(120, 118, &FONT_XS, s, G_PLANK2);
-            }
-            if (bln.state == BLN_OVER) {
-                round_rect(40, 76, 160, 84, 8, G_PAPER);
-                text_mid(120, 82, &FONT_B, "ROUND OVER", G_RED);
-                text_cat((s[0] = 0, s), "SCORE ");
-                int_text(bln.score, s + 6);
-                text_mid(120, 104, &FONT_B, s, G_INK);
-                s[0] = 0;
-                int_text(bln.tied, s);
-                text_cat(s, " TIED, ");
-                int_text(bln.popped, s + text_len(s));
-                text_cat(s, " POPPED");
-                text_mid(120, 126, &FONT_XS, s, G_PLANK2);
-                text_mid(120, 140, &FONT_XS, bln.new_best ? "NEW BEST!" : "", G_RED);
+                text_mid(54, 112, &FONT_XS, s, G_PLANK2);
             }
         }
         cv_rect(0, 220, 240, 20, G_LILAC);
@@ -611,10 +621,24 @@ static void balloon_draw(uint32_t now)
     }
 }
 
+static void bln_fanfare(uint32_t now)   /* the round's end: a run up the chord, on to the top for a new best */
+{
+    static const uint8_t RUN[6] = {72, 76, 79, 84, 88, 91};
+    int n = bln.new_best ? 6 : 4;
+    if (bln.fan < n && now - bln.phase_ms >= (uint32_t)bln.fan * 110u) {
+        snd_lock();
+        bw_note(RUN[bln.fan], bln.fan == n - 1 ? 95 : 80, BW_CHIME);
+        snd_unlock();
+        bln.fan++;
+    }
+}
+
 static void balloon_frame(uint32_t now)
 {
     if (bln.state == BLN_PLAY)
         bln_step(now);
+    else if (bln.state == BLN_OVER)
+        bln_fanfare(now);
     balloon_draw(now);
 }
 
@@ -643,7 +667,7 @@ static void balloon_best(char *t)
     }
 }
 
-static uint32_t balloon_keys_lit(uint32_t *mid)   /* the pad glows; the key on the pump lit */
+static uint32_t balloon_keys_lit(uint32_t *mid)   /* the pad glows (any key pumps); the keys held lit */
 {
     uint32_t m = 0;
     int k;
@@ -663,8 +687,8 @@ static void balloon_where(char *t)
         sp_num(t, lv);
         text_cat(t, ", ");
         text_cat(t, BLN_LEVEL_NAME[lv - 1]);
-        text_cat(t, ". HOLD A KEY TO PUMP. LET GO TO TIE IT OFF WHEN ITS NOTE REACHES THE RING'S NOTE. "
-                    "TOO FAR AND IT POPS. ");
+        text_cat(t, ". HOLD ANY KEY TO PUMP. THE RING'S NOTE PLAYS FIRST. LET GO WHEN THE BALLOON SINGS IT, "
+                    "TO TIE IT OFF. TOO FAR AND IT POPS. ");
         if (sav.more[SV_BALLOON].best) {
             text_cat(t, "BEST ");
             sp_num(t, sav.more[SV_BALLOON].best);
@@ -691,7 +715,7 @@ static void balloon_where(char *t)
         sp_pct(t, (int32_t)(bln.r * 100.0f / bln.target + 0.5f));
         text_cat(t, " OF THE RING. ");
     } else if (bln.phase == BLN_WAIT) {
-        text_cat(t, "HOLD A LIT KEY TO PUMP. ");
+        text_cat(t, "HOLD ANY KEY TO PUMP. ");
     } else {
         text_cat(t, bln_result());
         text_cat(t, ". ");
@@ -754,7 +778,7 @@ static void balloon_speak_dump(void)
 {
     int i, ph;
     static const int PTS[6] = {10, 6, 3, 1, 0, 0};
-    static const char *const MSG[] = {"TEN BALLOONS, HOLD A LIT KEY TO PUMP", "STOPPED", "POP, NO POINTS",
+    static const char *const MSG[] = {"TEN BALLOONS, HOLD ANY KEY TO PUMP", "STOPPED", "POP, NO POINTS",
                                       "PERFECT, 10 POINTS", "GOOD, 6 POINTS", "NEAR, 3 POINTS", "FAR, 1 POINT",
                                       "TOO SMALL, NO POINTS", "TOO BIG, NO POINTS", "ROUND OVER, SCORE 64",
                                       "ROUND OVER. NEW BEST, SCORE 64"};

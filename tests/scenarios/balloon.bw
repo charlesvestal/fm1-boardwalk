@@ -22,7 +22,9 @@ expect balloon_phase 1
 shot pump.png
 wait 1600
 shot tied.png
-wait 60000
+wait 700
+shot float.png
+wait 57300
 expect balloon_state 2
 expect balloon_tied 10
 expect balloon_popped 0
@@ -44,7 +46,9 @@ autoballoon over
 tap PLAY
 wait 600
 expect balloon_state 1
-wait 4500
+wait 2500
+shot pumpover.png
+wait 2000
 expect balloon_popped 1
 expect balloon_score 0
 shot pop.png
@@ -56,6 +60,13 @@ turn K1 2
 wait 50
 expect balloon_level 3
 shot stand3.png
+turn K1 -1
+wait 50
+expect balloon_level 2
+shot stand2.png
+turn K1 1
+wait 50
+expect balloon_level 3
 tap PLAY
 wait 700
 key 9 down

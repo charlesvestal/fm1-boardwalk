@@ -46,6 +46,7 @@ expect striker_state 4
 expect striker_exact 0
 expect striker_score 54
 expect striker_best 110
+shot over_best.png
 autostriker off
 tap PLAY
 wait 600

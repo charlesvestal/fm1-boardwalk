@@ -36,6 +36,7 @@ expect fish_snaps >0
 expect fish_catches 0
 tap PLAY
 expect fish_state 0
+shot stand_best.png
 autofish slow
 tap PLAY
 wait 40000

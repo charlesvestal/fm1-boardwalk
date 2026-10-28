@@ -42,3 +42,4 @@ wait 300
 tap PLAY
 wait 100
 expect bumpers_state 0
+shot stopped.png
