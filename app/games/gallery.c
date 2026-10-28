@@ -11,6 +11,7 @@
 #define GL_LEVELS 4
 #define GL_DUCKS 20                      /* a round */
 #define GL_ON 4                          /* at most this many on at once */
+#define GL_JAM 1000u                     /* ms the gun is jammed after a shot at nothing */
 #define GL_ROW_Y(r) (76 + (r) * 50)       /* a row's water line */
 
 enum { GS_STAND, GS_PLAY, GS_OVER };
@@ -22,7 +23,7 @@ typedef struct {
 static struct {
     int state, spawned, done, score, streak, best_streak, shots, new_best;
     duck_t duck[GL_ON];
-    uint32_t next_ms, last_ms, jam_until;
+    uint32_t next_ms, last_ms, jam_until, jammed_ms;
     int tell_key;                        /* the duck that got away, said for a moment */
     uint32_t tell_ms;
 } gl;
@@ -61,7 +62,7 @@ static void gallery_go(void)
     rnd_state ^= plat_ms() * 2654435761u;
     gl_clear();
     gl.spawned = gl.done = gl.score = gl.streak = gl.best_streak = gl.shots = 0;
-    gl.jam_until = 0;
+    gl.jam_until = gl.jammed_ms = 0;
     gl.tell_ms = 0;
     gl.next_ms = gl.last_ms = plat_ms() + 600u;
     gl.state = GS_PLAY;
@@ -107,10 +108,16 @@ static void gallery_key(int k, int down, uint32_t ms)
     int32_t far = -1;
     if (!down)
         return;
+    if (gl.state == GS_PLAY && (int32_t)(ms - gl.jam_until) < 0) {   /* jammed: a dry click, no note, no shot */
+        snd_lock();
+        bw_drum(BW_BLOCK_LO, 40);
+        snd_unlock();
+        return;
+    }
     snd_lock();
     bw_note(53 + k, 100, BW_PLUCK);
     snd_unlock();
-    if (gl.state != GS_PLAY || (int32_t)(ms - gl.jam_until) < 0)   /* (reloading) */
+    if (gl.state != GS_PLAY)
         return;
     gl.shots++;
     for (i = 0; i < GL_ON; i++) {        /* a duck with this note: the one nearest getting away */
@@ -123,7 +130,8 @@ static void gallery_key(int k, int down, uint32_t ms)
     }
     if (best < 0) {                      /* nothing there: the gun jams a moment */
         gl.streak = 0;
-        gl.jam_until = ms + 600u;
+        gl.jam_until = ms + GL_JAM;
+        gl.jammed_ms = ms;
         snd_lock();
         bw_note(41, 80, BW_CLUNK);
         snd_unlock();
@@ -238,7 +246,7 @@ static void gallery_draw(uint32_t now)
             cv_text(24, 38, &FONT_B, s, G_INK);
             cv_text(24, 58, &FONT_XS, GL_LEVEL_NAME[clamp(sav.gallery.level, 1, GL_LEVELS) - 1], G_PLANK2);
             cv_text(24, 84, &FONT_XS, "PLAY THE NOTE A DUCK QUACKS.", G_PLANK2);
-            cv_text(24, 98, &FONT_XS, "A MISSED SHOT JAMS THE GUN.", G_PLANK2);
+            cv_text(24, 98, &FONT_XS, "A MISSED SHOT JAMS THE GUN A SECOND.", G_PLANK2);
             text_cat((s[0] = 0, s), "20 DUCKS");
             if (sav.gallery.best) {
                 text_cat(s, ". BEST ");
@@ -250,7 +258,13 @@ static void gallery_draw(uint32_t now)
             int_text(gl.score, s + 5);
             cv_text(8, 200, &FONT_B, s, G_PAPER);
             s[0] = 0;
-            if (gl.tell_ms && now - gl.tell_ms < 1500u) {   /* the one that got away */
+            if (gl.state == GS_PLAY && gl.jammed_ms && (int32_t)(now - gl.jam_until) < 0) {   /* jammed: reloading */
+                int32_t left = (int32_t)(gl.jam_until - now);
+                text_cat(s, "JAMMED!");
+                cv_rect(150, 214, 82 - 82 * left / (int32_t)GL_JAM, 3, G_RED);
+                cv_text(232 - text_w(&FONT_B, s), 198, &FONT_B, s, G_RED);
+                s[0] = 0;
+            } else if (gl.tell_ms && now - gl.tell_ms < 1500u) {   /* the one that got away */
                 if (clamp(sav.gallery.level, 1, GL_LEVELS) >= 3) {
                     char n[6];
                     note_text(53 + gl.tell_key, n);
@@ -264,7 +278,8 @@ static void gallery_draw(uint32_t now)
                 int_text(gl.spawned, s + 5);
                 text_cat(s, " OF 20");
             }
-            cv_text(232 - text_w(&FONT_XS, s), 202, &FONT_XS, s, G_PAPER);
+            if (s[0])
+                cv_text(232 - text_w(&FONT_XS, s), 202, &FONT_XS, s, G_PAPER);
             if (gl.state == GS_OVER) {
                 round_rect(40, 72, 160, 76, 8, G_PAPER);
                 int_text(gl.score, s);
