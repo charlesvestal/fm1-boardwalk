@@ -56,7 +56,17 @@ static struct {
     volatile int call, call_said;        /* the call made for this lead's end; said yet */
     int leads, target, complete, result;
     uint8_t hint[RING_TOUCH_MAX];        /* a way to the target: the calls, lead by lead */
+    int lead_end_row[RING_TOUCH_MAX + 4];   /* the row each lead end made, and the call it took */
+    uint8_t lead_call[RING_TOUCH_MAX + 4];
+    int retry;                           /* the last touch missed: the next one keeps its length (and the hint) */
+    uint32_t late_ms;                    /* a call too late for this lead end: said a moment */
+    /* each blow, said as it is struck: GOOD, EARLY, LATE, CLASH, MISS */
+    uint8_t judge_k[2];
+    uint32_t judge_ms[2];
+    int32_t last_miss_t[2];              /* a missed blow's time: a late pull for it is not judged twice */
 } bl;
+enum { BJ_GOOD, BJ_EARLY, BJ_LATE, BJ_CLASH, BJ_MISS };
+static const char *const JUDGE_WORD[5] = {"GOOD", "EARLY", "LATE", "CLASH", "MISS"};
 
 static int bell_note(int b, int bells)   /* the ring's notes: the top of a major scale, the tenor its tonic */
 {
@@ -67,7 +77,7 @@ static int bell_note(int b, int bells)   /* the ring's notes: the top of a major
 static const ring_method_t *method(void) { return &RING_METHODS[sav.bells.method % RING_NMETHODS]; }
 static int is_mine(int b) { return b >= 0 && (b == bl.mine[0] || b == bl.mine[1]); }
 static const char *const MODE_NAME[BM_N] = {"TOWER", "HANDBELLS", "CONDUCTING"};
-static const char *const CALL_NAME[3] = {"PLAIN", "BOB", "SINGLE"};
+static const char *const CALL_NAME[3] = {"NO CALL", "BOB", "SINGLE"};
 
 static void method_name(char *t)         /* "PLAIN BOB MINOR" */
 {
@@ -137,10 +147,18 @@ static void conduct_extend(int upto)
     while (!bl.complete && bl.nrows <= upto && bl.nrows < ROWS_MAX - ROUNDS_AFTER) {
         if (r->at % r->nlead == r->nlead - 1) {   /* the lead end: the call goes in */
             ring_change_t keep = r->lead[r->nlead - 1];
-            r->lead[r->nlead - 1] = bl.calls[bl.call];
+            int call;
+            snd_lock();                  /* (the call comes from the tick) */
+            call = bl.call;
+            bl.call = RING_PLAIN;
+            snd_unlock();
+            r->lead[r->nlead - 1] = bl.calls[call];
             ring_next(r);
             r->lead[r->nlead - 1] = keep;
-            bl.call = RING_PLAIN;
+            if (bl.leads < RING_TOUCH_MAX + 4) {
+                bl.lead_end_row[bl.leads] = bl.nrows;
+                bl.lead_call[bl.leads] = (uint8_t)call;
+            }
             bl.leads++;
             memcpy(bl.rows[bl.nrows++], r->row, RING_MAX);
             if (r->round || bl.leads >= bl.target + 2) {
@@ -168,32 +186,97 @@ static int row_place(int row, int b)
     return 0;
 }
 
+static int heard_leads(void)             /* lead ends the ringing has reached (the rows are worked out ahead) */
+{
+    int i, row = bl.next / (bl.bells ? bl.bells : 1), n = 0;
+    for (i = 0; i < bl.leads && i < RING_TOUCH_MAX + 4; i++)
+        n += bl.lead_end_row[i] <= row;
+    return n;
+}
+
 static int32_t striking(void)
 {
     int sc = bl.blows ? (int)(100 - (100 * bl.err_sum + bl.blows * (bl.gap / 4)) / (bl.blows * (bl.gap / 2))) : 0;
     return sc < 0 ? 0 : sc;
 }
 
-static void bells_stand(void)
+static uint8_t *best_slot(void)          /* the best for this method, the tower's or the handbells' */
 {
+    return sav.bells.mode == BM_HAND ? &sav.hand_best[sav.bells.method % 10u] :
+                                       &sav.bells.best[sav.bells.method % NMETHODS_MAX];
+}
+
+static int new_best;
+
+static void bells_stand(int stood)       /* a best only for a whole touch (four good blows then PLAY is not one) */
+{
+    uint8_t *best = best_slot();
     bl.ringing = 0;
+    new_best = 0;
     if (bl.blows) {
         bl.score = striking();
-        if (bl.score > sav.bells.best[sav.bells.method % NMETHODS_MAX] || !sav.bells.best[sav.bells.method % NMETHODS_MAX]) {
-            sav.bells.best[sav.bells.method % NMETHODS_MAX] = (uint8_t)(bl.score ? bl.score : 1);
+        if (!stood && (bl.score > *best || !*best)) {
+            *best = (uint8_t)(bl.score ? bl.score : 1);
+            new_best = 1;
             save_dirty();
         }
         bl.done_ms = plat_ms();
     }
 }
 
-static void conduct_target(void)         /* a length to bring it round at, and a way there (the hint after) */
+static const char *rating(int sc)
+{
+    return sc >= 95 ? "SUPERB" : sc >= 85 ? "LOVELY" : sc >= 70 ? "STEADY" : "KEEP AT IT";
+}
+
+/* the hint: the calls a touch needs, only the leads called. "BOB AT 1, 2, 3" or "BOB AT 2, SINGLE AT 4" */
+static void hint_text(char *t)
+{
+    int i, last = -1;
+    t[0] = 0;
+    for (i = 0; i < bl.target; i++) {
+        if (bl.hint[i] == RING_PLAIN)
+            continue;
+        if (bl.hint[i] != last) {
+            if (last >= 0)
+                text_cat(t, ", ");
+            text_cat(t, CALL_NAME[bl.hint[i]]);
+            text_cat(t, " AT ");
+            last = bl.hint[i];
+        } else {
+            text_cat(t, ", ");
+        }
+        int_text(i + 1, t + text_len(t));
+    }
+}
+
+/* the lengths a touch can be set: those some calls bring round (never the plain course: it needs none) */
+static int touch_lengths(uint8_t found[RING_TOUCH_MAX + 1], uint8_t calls[RING_TOUCH_MAX + 1][RING_TOUCH_MAX])
+{
+    int l, i, n = 0;
+    ring_pb_touches(method(), found, calls);
+    for (l = 1; l <= RING_TOUCH_MAX; l++) {
+        int called = 0;
+        for (i = 0; i < l && found[l]; i++)
+            called |= calls[l][i] != RING_PLAIN;
+        if (found[l] && !called)
+            found[l] = 0;
+        n += found[l];
+    }
+    return n;
+}
+
+static void conduct_target(void)         /* a length to bring it round at (K2's, or any), and a way there */
 {
     uint8_t found[RING_TOUCH_MAX + 1], calls[RING_TOUCH_MAX + 1][RING_TOUCH_MAX];
-    int l, n = 0, pick;
-    ring_pb_touches(method(), found, calls);
-    for (l = 1; l <= RING_TOUCH_MAX; l++)
-        n += found[l];
+    int l, n = touch_lengths(found, calls), pick;
+    if (bl.retry && bl.target >= 1 && bl.target <= RING_TOUCH_MAX && found[bl.target])
+        return;                          /* the one missed, again: the hint holds */
+    if (sav.conduct_len && sav.conduct_len <= RING_TOUCH_MAX && found[sav.conduct_len]) {
+        bl.target = sav.conduct_len;
+        memcpy(bl.hint, calls[bl.target], RING_TOUCH_MAX);
+        return;
+    }
     pick = n ? (int)rnd((uint32_t)n) : 0;
     for (l = 1; l <= RING_TOUCH_MAX; l++)
         if (found[l] && pick-- == 0) {
@@ -211,6 +294,9 @@ static void bells_go(void)
     bl.gap = (int32_t)clamp(sav.bells.pace, PACE_MIN, PACE_MAX) * 10;
     bl.my_next[0] = bl.my_next[1] = 0;
     bl.err_sum = bl.blows = bl.clashes = 0;
+    bl.judge_ms[0] = bl.judge_ms[1] = 0;
+    bl.last_miss_t[0] = bl.last_miss_t[1] = -100000;
+    bl.late_ms = 0;
     bl.done_ms = 0;
     if (bl.mode == BM_CONDUCT) {
         conduct_target();
@@ -230,9 +316,10 @@ static void bells_go(void)
     bl.ringing = 1;
     if (bl.mode == BM_CONDUCT) {
         t[0] = 0;
-        int_text(bl.target, t);
+        text_cat(t, "LOOK TO, BACK TO ROUNDS IN ");
+        int_text(bl.target, t + text_len(t));
         text_cat(t, bl.target == 1 ? " LEAD" : " LEADS");
-        app_say("LOOK TO. BRING THEM ROUND IN", t);
+        app_say(t, "");
     } else {
         app_say("LOOK TO", "TREBLE'S GOING");
     }
@@ -270,6 +357,9 @@ static void judge_misses(uint32_t now)
                blow_time(bl.my_next[h], row_place(bl.my_next[h], bl.mine[h])) + bl.gap < t) {
             bl.err_sum += bl.gap / 2;    /* a miss: as bad as it gets */
             bl.blows++;
+            bl.last_miss_t[h] = blow_time(bl.my_next[h], row_place(bl.my_next[h], bl.mine[h]));
+            bl.judge_k[h] = BJ_MISS;
+            bl.judge_ms[h] = now;
             bl.my_next[h]++;
         }
 }
@@ -298,8 +388,13 @@ static void bells_key(int k, int down, uint32_t ms)
     if (bl.mode == BM_CONDUCT) {
         if (bl.ringing && !bl.complete) {
             int c = k < 13 ? RING_BOB : RING_SINGLE;
+            if (heard_leads() < bl.leads) {   /* this lead's end is already worked out: too late for it */
+                bl.late_ms = ms ? ms : 1;
+                return;
+            }
             bl.call = bl.call == c ? RING_PLAIN : c;
             bl.call_said = 0;
+            bw_note(c == RING_BOB ? 76 : 79, 100, BW_PLUCK);   /* the conductor's call (in the tick: no lock) */
         }
         return;
     }
@@ -318,12 +413,17 @@ static void bells_key(int k, int down, uint32_t ms)
     t = (int32_t)(ms - bl.t0);
     d = t - blow_time(bl.my_next[h], row_place(bl.my_next[h], bl.mine[h]));
     ring_mine(h, ms, bl.my_next[h] & 1);
+    if (t - bl.last_miss_t[h] < 2 * bl.gap && t - bl.last_miss_t[h] < (d < 0 ? -d : d))
+        return;                          /* a late pull for the blow already missed: not judged again */
+    bl.judge_ms[h] = ms ? ms : 1;
     if (d < -bl.gap) {
         bl.err_sum += bl.gap / 2;
         bl.blows++;
         bl.clashes++;
+        bl.judge_k[h] = BJ_CLASH;
         return;
     }
+    bl.judge_k[h] = d > -bl.gap / 8 && d < bl.gap / 8 ? BJ_GOOD : d < 0 ? BJ_EARLY : BJ_LATE;
     d = d < 0 ? -d : d;
     bl.err_sum += d > bl.gap / 2 ? bl.gap / 2 : d;
     bl.blows++;
@@ -335,7 +435,7 @@ static void conduct_said(char *t)        /* how a conducted touch ended, and the
     int i;
     t[0] = 0;
     if (bl.result == BR_ROUND) {
-        text_cat(t, "ROUND IN ");
+        text_cat(t, "ROUNDS IN ");
         sp_num(t, bl.leads);
         text_cat(t, bl.leads == 1 ? " LEAD. WELL CALLED." : " LEADS. WELL CALLED.");
         return;
@@ -351,29 +451,33 @@ static void conduct_said(char *t)        /* how a conducted touch ended, and the
         sp_num(t, bl.target);
         text_cat(t, bl.target == 1 ? " LEAD. " : " LEADS. ");
     }
-    for (i = 0; i < bl.target; i++) {    /* the hint */
-        text_cat(t, CALL_NAME[bl.hint[i]]);
-        text_cat(t, i + 1 < bl.target ? ", " : " WOULD DO IT.");
-    }
+    (void)i;
+    hint_text(t + text_len(t));          /* the hint: the called leads */
+    text_cat(t, " WOULD DO IT.");
 }
 
 static void bells_end(int stood)
 {
     char t[96];
-    bells_stand();
+    bells_stand(stood);
     if (bl.mode == BM_CONDUCT && bl.result != BR_NONE) {
+        bl.retry = bl.result != BR_ROUND;
         if (bl.result == BR_ROUND) {
             sav.touches++;
             save_dirty();
         }
         conduct_said(t);
-        app_say(stood ? "STAND" : "THAT'S ALL", t);
+        app_say(stood ? "STOPPED" : "THAT'S ALL", t);
     } else if (bl.blows) {
         text_cat((t[0] = 0, t), "STRUCK ");
         sp_pct(t, bl.score);
-        app_say(stood ? "STAND" : "THAT'S ALL", t);
+        text_cat(t, ". ");
+        text_cat(t, rating(bl.score));
+        if (new_best)
+            text_cat(t, ". NEW BEST");
+        app_say(stood ? "STOPPED" : "THAT'S ALL", t);
     } else {
-        app_say(stood ? "STAND" : "THAT'S ALL", "");
+        app_say(stood ? "STOPPED" : "THAT'S ALL", "");
     }
 }
 
@@ -419,6 +523,23 @@ static void bells_enc(int role, int steps)
         sav.bells.method = (uint8_t)m;
         method_name(t);
         app_readout("METHOD", t);
+    } else if (role == EN_K2 && sav.bells.mode == BM_CONDUCT) {   /* the length, among those a touch can be */
+        uint8_t found[RING_TOUCH_MAX + 1], calls[RING_TOUCH_MAX + 1][RING_TOUCH_MAX];
+        int l = sav.conduct_len, n;
+        touch_lengths(found, calls);
+        for (n = 0; n < RING_TOUCH_MAX + 1; n++) {
+            l = clamp(l + (steps > 0 ? 1 : -1), 0, RING_TOUCH_MAX);
+            if (l == 0 || found[l])
+                break;
+        }
+        sav.conduct_len = (uint8_t)(l == 0 || found[l] ? l : sav.conduct_len);
+        bl.retry = 0;
+        t[0] = 0;
+        if (sav.conduct_len) {
+            int_text(sav.conduct_len, t);
+            text_cat(t, sav.conduct_len == 1 ? " LEAD" : " LEADS");
+        }
+        app_readout("LENGTH", sav.conduct_len ? t : "ANY");
     } else if (role == EN_K2 && sav.bells.mode != BM_CONDUCT) {
         max = sav.bells.mode == BM_HAND ? bells_of(method()) / 2 : method()->stage;
         sav.bells.bell = (uint8_t)clamp((int32_t)sav.bells.bell + steps, 0, max);
@@ -441,6 +562,8 @@ static void bells_enc(int role, int steps)
     } else {
         return;
     }
+    if (role == EN_K1 || role == EN_K4)
+        bl.retry = 0;
     max = sav.bells.mode == BM_HAND ? bells_of(method()) / 2 : method()->stage;
     if (sav.bells.bell > max)
         sav.bells.bell = (uint8_t)max;
@@ -462,7 +585,7 @@ static void bells_enter(void)
 static void bells_leave(void)
 {
     if (bl.ringing)
-        bells_stand();
+        bells_stand(1);
     snd_lock();
     bw_bells_damp();
     snd_unlock();
@@ -506,7 +629,8 @@ static void bells_draw(uint32_t now)
         method_name(s);
         cv_text(6, 3, &FONT_XS, s, G_INK);
         if (bl.ringing)
-            cv_text(234 - text_w(&FONT_XS, row & 1 ? "BACK" : "HAND"), 3, &FONT_XS, row & 1 ? "BACK" : "HAND", G_INK);
+            cv_text(234 - text_w(&FONT_XS, row & 1 ? "BACKSTROKE" : "HANDSTROKE"), 3, &FONT_XS,
+                    row & 1 ? "BACKSTROKE" : "HANDSTROKE", G_INK);
         /* the frame and its bells */
         cv_rect(0, 18, 240, 70, G_PAPER2);
         cv_rect(10, 60, 220, 3, G_WHEEL);
@@ -520,22 +644,34 @@ static void bells_draw(uint32_t now)
         }
         /* your countdowns; conducting, the call and the lead */
         if (bl.ringing && bl.mode == BM_CONDUCT) {
-            int left = bl.ring.nlead - 1 - bl.ring.at % bl.ring.nlead;
+            int left = bl.ring.nlead - 1 - bl.ring.at % bl.ring.nlead, hl = heard_leads(), k;
             s[0] = 0;
             text_cat(s, "LEAD ");
-            sp_num(s, bl.leads + 1);
+            sp_num(s, hl + 1);
             text_cat(s, " OF ");
             sp_num(s, bl.target);
             cv_text(8, 90, &FONT_XS, s, G_INK);
-            if (bl.call != RING_PLAIN)
-                text_mid(150, 88, &FONT_B, bl.call == RING_BOB ? "BOB!" : "SINGLE!", G_RED);
-            else if (!bl.complete && left <= 4)
-                text_mid(150, 90, &FONT_XS, "CALL NOW?", G_PLANK2);
+            for (k = 0; k < hl && k < RING_TOUCH_MAX + 4; k++)   /* a call just taken: said big a moment */
+                if (bl.lead_call[k] != RING_PLAIN && row >= bl.lead_end_row[k] - 1 && row <= bl.lead_end_row[k] + 2)
+                    text_mid(150, 88, &FONT_B, bl.lead_call[k] == RING_BOB ? "BOB!" : "SINGLE!", G_RED);
+            if (bl.late_ms && now - bl.late_ms < 700u)
+                text_mid(150, 90, &FONT_XS, "TOO LATE", G_RED);
+            else if (bl.call != RING_PLAIN)
+                text_mid(150, 90, &FONT_XS, bl.call == RING_BOB ? "BOB AT LEAD END" : "SINGLE AT LEAD END", G_RED);
+            else if (!bl.complete && hl == bl.leads && left <= 4)
+                text_mid(150, 90, &FONT_XS, "CALL NOW", G_PLANK2);
         } else if (bl.ringing && t >= 0) {
             for (h = 0; h < 2; h++) {
                 int32_t mx = cx0 + bl.mine[h] * dx;
                 int n_until;
-                if (bl.mine[h] < 0 || (bl.pressed_ms[h] && now - bl.pressed_ms[h] < 180u))
+                if (bl.mine[h] < 0)
+                    continue;
+                if (bl.judge_ms[h] && now - bl.judge_ms[h] < 400u) {   /* that blow: how it went */
+                    int jk = bl.judge_k[h];
+                    text_mid(mx, 90, &FONT_XS, JUDGE_WORD[jk], jk == BJ_GOOD ? G_TEAL : jk >= BJ_CLASH ? G_RED : G_PLANK2);
+                    continue;
+                }
+                if (bl.pressed_ms[h] && now - bl.pressed_ms[h] < 180u)
                     continue;
                 n_until = blows_until(cur, bl.mine[h]);
                 if (n_until <= 1)
@@ -550,7 +686,7 @@ static void bells_draw(uint32_t now)
         /* the blue line: rows scroll up, the row ringing at y 134. The rows go in pairs, handstroke and backstroke,
          * a space and a dotted rule between pairs where the handstroke gap falls; the scrolling keeps time with the
          * ringing, gap and all */
-        if (bl.ringing || bl.score >= 0) {
+        if (bl.ringing) {
             const int32_t rh = 13, gp = 6, bx0 = 120 - (bl.bells - 1) * 23 / 2, yc = 134;   /* two rows past, six to
                                                                                           * come */
             int32_t r, scroll, lastx = -1, lasty = 0;
@@ -588,21 +724,24 @@ static void bells_draw(uint32_t now)
             }
 #undef ROW_Y
         } else {                         /* standing: the settings */
-            static const char *const HOW[BM_N][2] = {
-                {"PICK A BELL WITH K2, THEN PRESS ANY", "KEY EACH TIME IT IS DUE (THE PIPS)."},
-                {"TWO BELLS: THE LEFT HALF OF THE KEYS", "RINGS THE FIRST, THE RIGHT HALF THE OTHER."},
-                {"CALL: LEFT HALF BOB, RIGHT HALF SINGLE.", "BRING THE BELLS ROUND AT THE LENGTH SET."}};
-            const char *lab[4] = {"K1 METHOD", sav.bells.mode == BM_HAND ? "K2 BELLS" : "K2 BELL", "K3 PACE", "K4 MODE"};
+            const char *lab[4] = {"K1 METHOD", sav.bells.mode == BM_HAND ? "K2 BELLS" :
+                                               sav.bells.mode == BM_CONDUCT ? "K2 LENGTH" : "K2 BELL", "K3 PACE",
+                                  "K4 MODE"};
+            char how[2][48];
             for (i = 0; i < 4; i++) {
                 cv_text(14, 108 + i * 20, &FONT_XS, lab[i], G_PLANK2);
                 s[0] = 0;
                 if (i == 0)
                     method_name(s);
                 else if (i == 1) {
-                    if (sav.bells.mode == BM_CONDUCT)
-                        text_cat(s, "THE TOWER RINGS");
-                    else if (!sav.bells.bell)
-                        text_cat(s, "LISTEN");
+                    if (sav.bells.mode == BM_CONDUCT) {
+                        if (bl.retry)
+                            int_text(bl.target, s);
+                        else if (sav.conduct_len)
+                            int_text(sav.conduct_len, s);
+                        text_cat(s, bl.retry || sav.conduct_len ? " LEADS" : "ANY");
+                    } else if (!sav.bells.bell)
+                        text_cat(s, "JUST LISTEN");
                     else if (sav.bells.mode == BM_HAND)
                         pair_text(sav.bells.bell, s);
                     else
@@ -615,8 +754,30 @@ static void bells_draw(uint32_t now)
                 }
                 cv_text(94, 106 + i * 20, &FONT_B, s, G_INK);
             }
-            cv_text(14, 190, &FONT_XS, HOW[sav.bells.mode % BM_N][0], G_PLANK2);
-            cv_text(14, 204, &FONT_XS, HOW[sav.bells.mode % BM_N][1], G_PLANK2);
+            how[0][0] = how[1][0] = 0;   /* how to play, filled in */
+            if (sav.bells.mode == BM_CONDUCT) {
+                text_cat(how[0], "LEFT KEYS CALL BOB, RIGHT KEYS SINGLE.");
+                if (bl.retry) {
+                    text_cat(how[1], "TRY: ");
+                    hint_text(how[1] + 5);
+                } else {
+                    text_cat(how[1], "BRING THE BELLS BACK TO ROUNDS.");
+                }
+            } else if (sav.bells.mode == BM_HAND && sav.bells.bell) {
+                text_cat(how[0], "LEFT KEYS RING ");
+                int_text(2 * sav.bells.bell - 1, how[0] + text_len(how[0]));
+                text_cat(how[0], ", RIGHT KEYS RING ");
+                int_text(2 * sav.bells.bell, how[0] + text_len(how[0]));
+                text_cat(how[0], ".");
+                text_cat(how[1], "STRIKE EACH ON ITS TURN.");
+            } else if (sav.bells.bell) {
+                text_cat(how[0], "ANY KEY RINGS YOUR BELL.");
+                text_cat(how[1], "STRIKE IT ON NOW (THE PIPS COUNT DOWN).");
+            } else {
+                text_cat(how[0], "K2 PICKS A BELL FOR YOU TO RING.");
+            }
+            cv_text(14, 190, &FONT_XS, how[0], G_PLANK2);
+            cv_text(14, 204, &FONT_XS, how[1], bl.retry && sav.bells.mode == BM_CONDUCT ? G_RED : G_PLANK2);
         }
         /* the foot: striking, or the touch */
         cv_rect(0, 220, 240, 20, G_LILAC);
@@ -631,27 +792,38 @@ static void bells_draw(uint32_t now)
         } else if (bl.ringing) {
             cv_text(8, 224, &FONT_XS, bl.mode == BM_CONDUCT ? "LEFT: BOB  RIGHT: SINGLE" :
                                       bl.mine[0] >= 0 ? "ANY KEY: YOUR BELL" : "LISTENING", G_INK);
-            cv_text(232 - text_w(&FONT_XS, "PLAY: STAND"), 224, &FONT_XS, "PLAY: STAND", G_INK);
+            cv_text(232 - text_w(&FONT_XS, "PLAY: STOP"), 224, &FONT_XS, "PLAY: STOP", G_INK);
         } else {
             if (bl.mode == BM_CONDUCT && bl.result != BR_NONE) {
-                cv_text(8, 224, &FONT_XS, bl.result == BR_ROUND ? "WELL CALLED" : "NOT THIS TIME",
-                        bl.result == BR_ROUND ? G_TEAL : G_RED);
+                if (bl.result == BR_ROUND) {
+                    text_cat((s[0] = 0, s), "ROUNDS IN ");
+                    int_text(bl.leads, s + text_len(s));
+                    text_cat(s, ". WELL CALLED");
+                } else {
+                    text_cat((s[0] = 0, s), "NOT THIS TIME");
+                }
+                cv_text(8, 224, &FONT_XS, s, bl.result == BR_ROUND ? G_TEAL : G_RED);
             } else if (bl.score >= 0) {
-                text_cat((s[0] = 0, s), "STRUCK ");
-                int_text(bl.score, s + 7);
-                text_cat(s, "%");
+                text_cat((s[0] = 0, s), new_best ? "NEW BEST! " : "STRUCK ");
+                int_text(bl.score, s + text_len(s));
+                text_cat(s, "% ");
+                text_cat(s, rating(bl.score));
                 cv_text(8, 224, &FONT_XS, s, G_RED);
             } else if (bl.mode == BM_CONDUCT && sav.touches) {
-                text_cat((s[0] = 0, s), "TOUCHES ");
-                int_text(sav.touches, s + 8);
+                text_cat((s[0] = 0, s), "CALLED ROUND ");
+                int_text(sav.touches, s + text_len(s));
+                text_cat(s, sav.touches == 1 ? " TIME" : " TIMES");
                 cv_text(8, 224, &FONT_XS, s, G_INK);
-            } else if (bl.mode != BM_CONDUCT && sav.bells.best[sav.bells.method % NMETHODS_MAX]) {
+            } else if (bl.mode != BM_CONDUCT && *best_slot()) {
                 text_cat((s[0] = 0, s), "BEST ");
-                int_text(sav.bells.best[sav.bells.method % NMETHODS_MAX], s + 5);
+                int_text(*best_slot(), s + 5);
                 text_cat(s, "%");
                 cv_text(8, 224, &FONT_XS, s, G_INK);
             }
-            cv_text(232 - text_w(&FONT_XS, "PLAY: RING"), 224, &FONT_XS, "PLAY: RING", G_INK);
+            {
+                const char *f = bl.mode != BM_CONDUCT && bl.mine[0] < 0 ? "PLAY: LISTEN" : "PLAY: RING";
+                cv_text(232 - text_w(&FONT_XS, f), 224, &FONT_XS, f, G_INK);
+            }
         }
         band_send(y0);
     }
@@ -665,6 +837,10 @@ static void bells_frame(uint32_t now)
             if (!bl.call_said) {         /* the call, said (the key came in the tick) */
                 bl.call_said = 1;
                 app_say(CALL_NAME[bl.call], "");
+            }
+            if (bl.late_ms && bl.late_ms != 1u && plat_ms() - bl.late_ms < 40u) {
+                app_say("TOO LATE FOR THIS LEAD", "");
+                bl.late_ms = 1u;
             }
         }
         judge_misses(now);
@@ -712,11 +888,11 @@ static uint32_t bells_keys_lit(uint32_t *mid)
     if (!bl.ringing || t < -600)
         return 0;
     if (bl.mode == BM_CONDUCT) {
-        int left = bl.ring.nlead - 1 - bl.ring.at % bl.ring.nlead;
+        int left = bl.ring.nlead - 1 - bl.ring.at % bl.ring.nlead, open = !bl.complete && heard_leads() == bl.leads;
         for (i = 0; i < 16; i++) {
             if ((bl.call == RING_BOB && i < 8) || (bl.call == RING_SINGLE && i >= 8))
                 keys |= 1u << WK[i];
-            else if (!bl.complete && left <= 4)
+            else if (open && left <= 4)
                 *mid |= 1u << WK[i];
         }
         return keys;
@@ -753,7 +929,7 @@ static void bells_where(char *t)         /* the screen, for a screen reader */
             sp_num(t, bl.leads + 1);
             text_cat(t, " OF ");
             sp_num(t, bl.target);
-            text_cat(t, bl.call == RING_PLAIN ? ". LEFT HALF CALLS BOB, RIGHT HALF SINGLE" :
+            text_cat(t, bl.call == RING_PLAIN ? ". LEFT KEYS CALL BOB, RIGHT KEYS SINGLE" :
                         bl.call == RING_BOB ? ". BOB CALLED" : ". SINGLE CALLED");
         } else if (bl.mine[1] >= 0) {
             pair_text(sav.bells.bell, p);
@@ -771,14 +947,22 @@ static void bells_where(char *t)         /* the screen, for a screen reader */
             text_cat(t, ". STRIKING ");
             sp_pct(t, striking());
         }
-        text_cat(t, ". PLAY STANDS.");
+        text_cat(t, ". PLAY STOPS.");
         return;
     }
     text_cat(t, "BELLS, ");
     text_cat(t, MODE_NAME[sav.bells.mode % BM_N]);
     text_cat(t, ". KNOB 1, METHOD ");
     text_cat(t, m);
-    if (sav.bells.mode != BM_CONDUCT) {
+    if (sav.bells.mode == BM_CONDUCT) {
+        text_cat(t, ". KNOB 2, LENGTH ");
+        if (sav.conduct_len) {
+            sp_num(t, sav.conduct_len);
+            text_cat(t, " LEADS");
+        } else {
+            text_cat(t, "ANY");
+        }
+    } else {
         text_cat(t, ". KNOB 2, ");
         if (sav.bells.bell && sav.bells.mode == BM_HAND) {
             pair_text(sav.bells.bell, p);
@@ -788,12 +972,14 @@ static void bells_where(char *t)         /* the screen, for a screen reader */
             text_cat(t, "BELL ");
             sp_num(t, sav.bells.bell);
         } else {
-            text_cat(t, "LISTENING");
+            text_cat(t, "JUST LISTENING");
         }
     }
     text_cat(t, ". KNOB 3, PACE ");
     sp_num(t, sav.bells.pace * 10);
-    text_cat(t, " MS. KNOB 4 MODE. ");
+    text_cat(t, " MS. KNOB 4, MODE ");
+    text_cat(t, MODE_NAME[sav.bells.mode % BM_N]);
+    text_cat(t, ". ");
     if (bl.mode == BM_CONDUCT && bl.result != BR_NONE) {
         conduct_said(t + text_len(t));
         text_cat(t, " ");

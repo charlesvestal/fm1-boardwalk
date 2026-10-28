@@ -1,5 +1,6 @@
 # Bells: bell 2 struck on time through the rounds (PLAY at 0, the first blow at 600 + 220 ms, a gap of 220 ms, the
-# handstroke gap before rows 2 and 4), stood after four blows: struck 90 % or better, and kept as the best
+# handstroke gap before rows 2 and 4), stopped after four blows: struck 90 % or better, but no best (not a whole
+# touch)
 wait 800
 tap PLAY
 turn K2 2
@@ -34,4 +35,4 @@ reboot
 wait 800
 tap PLAY
 wait 100
-expect best 100
+expect best 0
