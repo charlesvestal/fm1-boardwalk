@@ -419,6 +419,8 @@ int app_expect(const char *what, int *got)
         *got = bl.ringing;
     else if (!strcmp(what, "score"))     /* the last touch's striking, -1 none */
         *got = bl.score;
+    else if (!strcmp(what, "clashes"))   /* Bells: pulls far too soon */
+        *got = bl.clashes;
     else if (!strcmp(what, "blows"))     /* your blows judged */
         *got = bl.blows;
     else if (!strcmp(what, "method"))

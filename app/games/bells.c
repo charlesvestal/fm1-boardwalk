@@ -16,6 +16,8 @@
 #define ROWS_MAX (ROUNDS_BEFORE + 232 + ROUNDS_AFTER)
 #define PACE_MIN 16                      /* the gap between blows, x 10 ms */
 #define PACE_MAX 32
+#define VEL_TOWER 90                     /* the tower's bells, and yours louder: you hear it among them */
+#define VEL_MINE 120
 
 static struct {
     uint8_t rows[ROWS_MAX][RING_MAX];    /* the whole touch, worked out at the start */
@@ -27,7 +29,7 @@ static struct {
     int mine;                            /* your bell, 0-based; -1 listening */
     /* your striking */
     int my_next;                         /* your next blow to be judged: row index */
-    int32_t err_sum, blows;
+    int32_t err_sum, blows, clashes;     /* clashes: pulls far too soon */
     int score;                           /* the last touch's, % (-1 none yet) */
     uint32_t pressed_ms;                 /* the last time you pulled */
     volatile uint32_t struck_ms[RING_MAX];   /* each bell's last blow (for the swing), and on which stroke */
@@ -104,13 +106,14 @@ static void bells_go(void)
     touch_build();
     bl.gap = (int32_t)clamp(sav.bells.pace, PACE_MIN, PACE_MAX) * 10;
     bl.my_next = 0;
-    bl.err_sum = bl.blows = 0;
+    bl.err_sum = bl.blows = bl.clashes = 0;
     bl.done_ms = 0;
     snd_lock();
     for (i = 0; i < RING_MAX; i++) {
         bl.struck_ms[i] = 0;
         bl.struck_back[i] = 0;
-        bw_bell_pan(i, -48 + 96 * i / (bl.bells - 1));   /* the treble on the left */
+        bw_bell_pan(i, i == bl.mine ? 0 : -48 + 96 * i / (bl.bells - 1));   /* the treble on the left, yours
+                                                                         * in the middle */
     }
     snd_unlock();
     bl.next = 0;
@@ -132,7 +135,7 @@ static void bells_tick(uint32_t ms)
             break;
         b = bl.rows[row][place];
         if (b != bl.mine) {
-            bw_bell(b, bell_note(b, bl.bells), 96);
+            bw_bell(b, bell_note(b, bl.bells), VEL_TOWER);
             bl.struck_ms[b] = ms;
             bl.struck_back[b] = (uint8_t)(row & 1);
         }
@@ -151,26 +154,45 @@ static void judge_misses(uint32_t now)
     }
 }
 
+static void ring_mine(uint32_t ms, int back)   /* your bell sounds, and swings */
+{
+    int b = bl.mine >= 0 ? bl.mine : bl.bells - 1;   /* listening: the keys ring the tenor */
+    snd_lock();
+    bw_bell(b, bell_note(b, bl.bells), VEL_MINE);
+    snd_unlock();
+    bl.struck_ms[b] = ms;
+    bl.struck_back[b] = (uint8_t)back;
+    bl.pressed_ms = ms;
+}
+
+/* a pull: your bell always sounds. Near your blow (within a gap) it is that blow, judged on how far off it was; far
+ * too soon it is a clash, struck in the wrong place: a blow as bad as a miss, and the one due is still to come */
 static void bells_key(int k, int down, uint32_t ms)
 {
-    int32_t t, ideal, d;
+    int32_t t, d;
     (void)k;
-    if (!down || bl.mine < 0 || !bl.ringing)
+    if (!down)
+        return;
+    if (!bl.ringing) {                   /* standing: hear your bell (the tenor, listening) */
+        ring_mine(ms, bl.struck_back[bl.mine >= 0 ? bl.mine : bl.bells - 1] ^ 1);
+        return;
+    }
+    if (bl.mine < 0)                     /* listening while the tower rings: the keys are quiet */
         return;
     judge_misses(ms);
-    if (bl.my_next >= bl.nrows)
+    if (bl.my_next >= bl.nrows) {
+        ring_mine(ms, 0);
         return;
+    }
     t = (int32_t)(ms - bl.t0);
-    ideal = blow_time(bl.my_next, my_place(bl.my_next));
-    d = t - ideal;
-    if (d < -bl.gap)                     /* far too soon: a clash, the bell does not go over */
+    d = t - blow_time(bl.my_next, my_place(bl.my_next));
+    ring_mine(ms, bl.my_next & 1);
+    if (d < -bl.gap) {
+        bl.err_sum += bl.gap / 2;
+        bl.blows++;
+        bl.clashes++;
         return;
-    snd_lock();
-    bw_bell(bl.mine, bell_note(bl.mine, bl.bells), 104);
-    snd_unlock();
-    bl.struck_ms[bl.mine] = ms;
-    bl.struck_back[bl.mine] = (uint8_t)(bl.my_next & 1);
-    bl.pressed_ms = ms;
+    }
     d = d < 0 ? -d : d;
     bl.err_sum += d > bl.gap / 2 ? bl.gap / 2 : d;
     bl.blows++;
