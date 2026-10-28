@@ -123,23 +123,26 @@ static void bell_strike(int i, int note, int vel, int bright_strike)
 
 /* ------------------------------------------------------------------- notes --- */
 /* two-operator FM: a modulator at a ratio of the note, its index falling away faster than the note itself. The
- * timbres: a pure sine (Pitch's first levels), a pluck, an electric piano, a chime, a bass, and the clunk of a missed
- * tile (a low, dull thud) */
+ * timbres: a pure sine, a pluck, an electric piano, a chime, a bass, the clunk of a missed tile (a low, dull thud);
+ * and a sawtooth (Pitch's: every harmonic, so the pitch is plain even on the FM-1's small speaker), band-limited
+ * (polyBLEP) and softened by a one-pole lowpass */
 typedef struct {
     float ratio, idx, idx_decay, decay, amp;
     int8_t octave;                       /* heard this many octaves off the note */
+    uint8_t saw;
 } timbre_t;
 static const timbre_t TIMBRE[BW_NTIMBRES] = {
-    {1.0f, 0.0f, 1.0f, 0.99996f, 0.30f, 0},         /* sine: ~0.6 s */
-    {2.0f, 2.5f, 0.9997f, 0.99985f, 0.35f, 0},      /* pluck */
-    {1.0f, 1.6f, 0.99985f, 0.99994f, 0.32f, 0},     /* piano */
-    {3.5f, 1.3f, 0.99992f, 0.99997f, 0.22f, 0},     /* chime */
-    {1.0f, 1.1f, 0.9999f, 0.99993f, 0.40f, -1},     /* bass */
-    {1.41f, 3.0f, 0.998f, 0.9993f, 0.40f, -2},      /* clunk */
+    {1.0f, 0.0f, 1.0f, 0.99996f, 0.30f, 0, 0},         /* sine: ~0.6 s */
+    {2.0f, 2.5f, 0.9997f, 0.99985f, 0.35f, 0, 0},      /* pluck */
+    {1.0f, 1.6f, 0.99985f, 0.99994f, 0.32f, 0, 0},     /* piano */
+    {3.5f, 1.3f, 0.99992f, 0.99997f, 0.22f, 0, 0},     /* chime */
+    {1.0f, 1.1f, 0.9999f, 0.99993f, 0.40f, -1, 0},     /* bass */
+    {1.41f, 3.0f, 0.998f, 0.9993f, 0.40f, -2, 0},      /* clunk */
+    {1.0f, 0.0f, 1.0f, 0.99995f, 0.20f, 0, 1},      /* saw: ~0.5 s */
 };
 typedef struct {
-    float ph, mph, inc, minc, env, idx, idx_decay, decay;
-    uint8_t attract;
+    float ph, mph, inc, minc, env, idx, idx_decay, decay, lp;
+    uint8_t attract, saw;
 } note_t;
 static note_t notev[BW_NOTES];
 static int note_next;
@@ -164,22 +167,37 @@ static void note_start(int note, int vel, int timbre, int attract)
     v->idx = t->idx;
     v->idx_decay = t->idx_decay;
     v->decay = t->decay;
-    v->ph = v->mph = 0.0f;
+    v->ph = v->mph = v->lp = 0.0f;
     v->attract = (uint8_t)attract;
+    v->saw = t->saw;
+}
+
+static inline float blep(float t, float dt)   /* the polyBLEP correction at a sawtooth's jump */
+{
+    if (t < dt) {
+        t /= dt;
+        return t + t - t * t - 1.0f;
+    }
+    if (t > 1.0f - dt) {
+        t = (t - 1.0f) / dt;
+        return t * t + t + t + 1.0f;
+    }
+    return 0.0f;
 }
 
 /* ------------------------------------------------------------------- tones --- */
-/* sustained: the fundamental with a little of the second and third harmonics, so two tones close together beat
- * clearly. Pitch and level glide (no clicks, no steps) */
+/* sustained sawtooths (as Pitch's notes): every harmonic beats against its twin, so two tones a few cents apart
+ * beat plainly. Pitch and level glide (no clicks, no steps) */
 typedef struct {
-    float ph, inc, inc_target, level, level_target;
+    float ph, inc, inc_target, level, level_target, lp;
 } tone_t;
 static tone_t tone[BW_TONES];
 
 /* -------------------------------------------------------------------- gull --- */
-/* a herring gull's call: two or three falling cries, each a fast-warbling sine sweeping down */
+/* a herring gull's call: two or three falling cries, each a fast-warbling sine sweeping down, each quieter than the
+ * last and fading away slowly: a gull calling as it flies off */
 static struct {
-    float ph, f, env, wob;
+    float ph, f, env, wob, far;          /* far: this cry's level, falling cry by cry */
     int calls, left;                     /* cries to come; samples left in this one */
 } gull;
 static uint32_t gull_wait = 44100u * 6u;   /* samples to the next chance of a gull */
@@ -391,6 +409,7 @@ void bw_render(int32_t *lr, uint32_t n, uint32_t gain_q12)
         gull_now = 0;
         gull.calls = 2 + (int)(rng >> 31);
         gull.left = 0;
+        gull.far = 1.0f / 0.55f;
     }
     for (i = 0; i < BW_BELLS; i++) {     /* the level estimate, for the screen: the nominal's */
         bell_t *b = &bell[i];
@@ -422,8 +441,13 @@ void bw_render(int32_t *lr, uint32_t n, uint32_t gain_q12)
             v->mph -= (float)(int)v->mph;
             v->ph += v->inc;
             v->ph -= (float)(int)v->ph;
-            m = fm_sin_turns(v->mph) * v->idx;
-            s = fm_sin_turns(v->ph + m * 0.159155f) * v->env;
+            if (v->saw) {
+                v->lp += 0.35f * (2.0f * v->ph - 1.0f - blep(v->ph, v->inc) - v->lp);
+                s = v->lp * v->env;
+            } else {
+                m = fm_sin_turns(v->mph) * v->idx;
+                s = fm_sin_turns(v->ph + m * 0.159155f) * v->env;
+            }
             if (v->attract)
                 s *= attract_gain;
             v->env *= v->decay;
@@ -442,23 +466,24 @@ void bw_render(int32_t *lr, uint32_t n, uint32_t gain_q12)
             t->ph += t->inc;
             t->ph -= (float)(int)t->ph;
             p = t->ph;
-            s = (fm_sin_turns(p) + 0.3f * fm_sin_turns(2.0f * p) + 0.15f * fm_sin_turns(3.0f * p)) * t->level;
+            t->lp += 0.35f * (2.0f * p - 1.0f - blep(p, t->inc) - t->lp);
+            s = t->lp * t->level * 0.6f;
             l += s;
             r += s;
             wet += 0.1f * s;
         }
         if (gull.calls) {
             if (gull.left <= 0) {        /* the next cry, after a breath */
-                gull.left = 44100 * 26 / 100;
+                gull.left = 44100 * 40 / 100;
                 gull.f = 2500.0f;
-                gull.env = 0.0f;
+                gull.far *= 0.55f;
             }
             gull.left--;
-            if (gull.left > 44100 * 6 / 100) {
-                gull.env += (0.05f * (surf_level > 0.3f ? surf_level : 0.3f) - gull.env) * 0.004f;
+            if (gull.left > 44100 * 24 / 100) {   /* the cry: swells in, sweeping down */
+                gull.env += (0.04f * gull.far * (surf_level > 0.3f ? surf_level : 0.3f) - gull.env) * 0.002f;
                 gull.f *= 0.99996f;
-            } else {
-                gull.env *= 0.999f;
+            } else {                     /* then fades away */
+                gull.env *= 0.99975f;
             }
             gull.wob += 32.0f / (float)BW_RATE;
             gull.wob -= (float)(int)gull.wob;

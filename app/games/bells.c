@@ -16,7 +16,7 @@
 #define ROWS_MAX (ROUNDS_BEFORE + 232 + ROUNDS_AFTER)
 #define PACE_MIN 16                      /* the gap between blows, x 10 ms */
 #define PACE_MAX 32
-#define VEL_TOWER 64                     /* the tower's bells, and yours ~12 dB louder and brighter: you hear it */
+#define VEL_TOWER 90                     /* the tower's bells; yours louder (~6 dB) and brighter: you hear it */
 #define VEL_MINE 127
 
 static struct {

@@ -34,7 +34,11 @@ static struct {
     int new_best;
 } pt;
 
-static const char *const TIMBRE_NAME[4] = {"SINE", "PLUCK", "PIANO", "CHIME"};
+static const uint8_t EAR_TIMBRES[4] = {BW_SAW, BW_PLUCK, BW_PIANO, BW_CHIME};   /* level 6 picks among them */
+static const char *TIMBRE_NAME(int t)
+{
+    return t == BW_SAW ? "SAW" : t == BW_PLUCK ? "PLUCK" : t == BW_PIANO ? "PIANO" : "CHIME";
+}
 
 static void ear_level_text(int lv, char *t)   /* what a level asks */
 {
@@ -71,7 +75,7 @@ static void ear_ask(uint32_t now)
 {
     pt.target = ear_pick();
     pt.last_target = pt.target;
-    pt.timbre = pt.level <= 2 ? BW_SINE : pt.level <= 4 ? BW_PIANO : pt.level == 5 ? BW_CHIME : (int)rnd(4);
+    pt.timbre = pt.level <= 4 ? BW_SAW : pt.level == 5 ? BW_CHIME : EAR_TIMBRES[rnd(4)];
     pt.ref = pt.level <= 2;
     pt.guess = -1;
     pt.state = PS_ASK;
@@ -223,7 +227,7 @@ static void pitch_key(int k, int down, uint32_t ms)
     if (!down || sav.pitch.mode == 1)
         return;
     snd_lock();
-    bw_note(53 + k, 100, pt.state == PS_STAND || pt.state == PS_OVER ? BW_PIANO : pt.timbre);
+    bw_note(53 + k, 100, pt.state == PS_STAND || pt.state == PS_OVER ? BW_SAW : pt.timbre);
     snd_unlock();
     if (pt.state == PS_ASK && pt.played)
         ear_answer(k, ms);
@@ -270,7 +274,7 @@ static void pitch_enc(int role, int steps)
 static void pitch_enter(void)
 {
     pt.state = PS_STAND;
-    pt.timbre = BW_PIANO;
+    pt.timbre = BW_SAW;
 }
 
 static void pitch_leave(void)
@@ -339,7 +343,7 @@ static void pitch_draw(uint32_t now)
                 text_mid(120, 84, &FONT_L, "?", G_INK);
                 text_mid(120, 140, &FONT_XS, pt.ref && !pt.played ? "FIRST A C4, FOR REFERENCE" :
                          pt.played ? "NOW THE NOTE: FIND IT ON THE KEYS" : "LISTEN...", G_PLANK2);
-                text_mid(120, 152, &FONT_XS, TIMBRE_NAME[pt.timbre & 3], G_MUTE);
+                text_mid(120, 152, &FONT_XS, TIMBRE_NAME(pt.timbre), G_MUTE);
                 if (pt.played) {         /* the time left */
                     int32_t left = (int32_t)EAR_WAIT - (int32_t)(now - pt.asked_ms);
                     cv_rect(60, 166, 120 * clamp(left, 0, (int32_t)EAR_WAIT) / (int32_t)EAR_WAIT, 3, G_TEAL);
@@ -511,4 +515,4 @@ static const uint8_t PITCH_TUNE[] = {60, 64, 67, 72, 0, 67, 64, 0};   /* the att
 
 static const game_t GAME_PITCH = {"PITCH", RGB(62, 154, 176), pitch_enter, pitch_leave, pitch_frame, pitch_key,
                                   pitch_button, pitch_enc, 0, pitch_attract, pitch_best, pitch_keys_lit,
-                                  PITCH_TUNE, sizeof PITCH_TUNE, 300, BW_SINE, pitch_where};
+                                  PITCH_TUNE, sizeof PITCH_TUNE, 300, BW_SAW, pitch_where};
