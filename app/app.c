@@ -503,10 +503,10 @@ void app_frame(void)
     input();
     lights();
     ann_tick(now);
-    /* save when nothing is ringing (a flash write holds the sound a moment) */
-    /* saved when nothing is playing (a flash write holds the sound a moment): in a game, 1.5 s after a change; on the
+    /* saved when nothing is playing (a flash write holds the sound a moment): in a game, 2.5 s after a change (a
+     * round's closing chimes ring out first); on the
      * boardwalk (the sea and the tunes play on), after 10 s left alone, or on stepping into a game */
-    if (dirty && now - dirty_ms > (ui.game ? 1500u : 10000u) && !(ui.game && ui.game->playing && ui.game->playing())) {
+    if (dirty && now - dirty_ms > (ui.game ? 2500u : 10000u) && !(ui.game && ui.game->playing && ui.game->playing())) {
         dirty = 0;
         if (plat_store_save(OBJ_SAVE, &sav, sizeof sav) != 0)
             app_warn("NOT SAVED", "THE FLASH DID NOT TAKE IT");

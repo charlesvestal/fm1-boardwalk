@@ -701,7 +701,12 @@ static void fortune_where(char *t)
     text_cat(t, ". PLAY ASKS AGAIN.");
 }
 
-static int fortune_playing(void) { return fo.state == FS_THINK || fo.state == FS_ANSWER; }
+static int fortune_playing(void)         /* the answer, and the lucky note ringing after it (the save waits: a flash
+                                          * write holds the sound) */
+{
+    return fo.state == FS_THINK || fo.state == FS_ANSWER ||
+           (fo.state == FS_CARD && plat_ms() - fo.t0 < (uint32_t)fo.end_at + 3000u);
+}
 
 #ifdef PLAT_HOST
 /* the host simulator: the game's own script commands (1 = handled) and checks (1 = known), a call every

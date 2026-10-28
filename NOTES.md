@@ -95,7 +95,7 @@ locked out (`snd_lock`), so the queue keeps one producer at a time.
 - **Controls:** in the menu, OCT− / OCT+ (or turning SELECT) scroll the cabinets and PLAY enters a game; K1 the sea, K2 the attract tunes' level. In a game, HOME goes back to the boardwalk and everything else belongs to the game. MASTER is always volume. fm1-base's safety stays (REC held at power-on = update mode).
 - **Sound engine `bw`** (audio interrupt): commands (`bw_bell(slot, note, vel)`, `bw_bell_pan`, `bw_blip(note, vel)`, `bw_surf(level)`, `bw_bells_damp`) drained at the start of each block. Bells: 8 slots, 7 partials each (hum, prime, tierce, quint, nominal, superquint, octave nominal) as decaying resonators. Blip: 4 FM plucks. Surf: noise with a 7 s swell. One Dattorro plate (AMB-1's). The attract tunes are their own group of notes with a level (`bw_attract`), faded out as the row moves and in again a quarter second after it stops. Notes come in six timbres (sine, pluck, piano, chime, bass, clunk); two sustained tones for Pitch's duel; a gull now and then while the sea is up.
 - **Drawing:** two 240 × 120 bands per frame on gfx.c's canvas, ~30 fps (to check on the device).
-- **Saving:** one object (`save_t`): format, the cabinet in front, the surf level, Bells' method / bell / pace and its best per method, room for the others. Saved 1.5 s after a change, never while bells ring (a flash write holds the sound).
+- **Saving:** one object (`save_t`): format, the cabinet in front, the surf level, Bells' method / bell / pace and its best per method, room for the others. Saved 2.5 s after a change in a game (10 s on the boardwalk), never while a game plays (a flash write holds the sound); Fortune counts as playing until its lucky note has rung.
 - **Identity:** FM-1_12. Own USB name.
 
 Bells as built: K1 method (ten: Plain Hunt, Plain Bob and Grandsire Doubles; Plain Hunt, Plain Bob, Kent TB and Cambridge S Minor; Plain Hunt, Plain Bob and Cambridge S Major), K2 your bell (LISTEN or 1..n), K3 pace (160–320 ms a blow). PLAY rings 4 rows of rounds, the plain course, 2 rows of rounds, or stands. Any key strikes your bell; a blow a gap late is a miss. The bells' notes: the top of a major scale down to the tenor.
@@ -198,7 +198,8 @@ Bells as built: K1 method (ten: Plain Hunt, Plain Bob and Grandsire Doubles; Pla
 - A 60 s ride to a fairground waltz in C (from the tick). Any key on a beat to tap spins the cup (perfect ±40 ms,
   good ±90); off the beat it wobbles; a beat left out costs; drag 1.5 + 6 %/s. Top speed (85+): a countermelody, the
   bulbs and keys chase. Score = tenths at the top + the peak. Any knob spins it a little (to 70). K1: ONE A BAR, EVERY
-  BEAT, FAST WALTZ. TC_LAG to set on the FM-1.
+  BEAT, FAST WALTZ. The waltz quickens every four bars (a 50th off the beat each, ten times: a fifth
+  faster), FASTER! shown for the bar. TC_LAG to set on the FM-1.
 
 ## Bumpers (built 2026-10-28)
 - The dodgems from above: your car drives on; left white keys steer left, right ones right, sharper towards the
