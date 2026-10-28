@@ -1,38 +1,41 @@
-# Pitch EAR: five right and the level goes up; three wrong and it is over, the best kept
+# Pitch EAR: five right and the level goes up (shown, with its name); a wrong answer costs a life and the right note
+# follows yours; three wrong and it is over, the best kept
 wait 800
 tap OCT+
 wait 400
 tap PLAY
 wait 100
 expect game 2
+shot stand.png
 tap PLAY
-wait 1500
+wait 1800
 expect pitch_state 1
 shot ask.png
 answer right
 wait 30
 expect pitch_score 1
 shot right.png
-wait 2000
+wait 2600
 answer right
-wait 2000
+wait 2600
 answer right
-wait 2000
+wait 2600
 answer right
-wait 2000
+wait 2600
 answer right
-wait 30
+wait 300
 expect pitch_level 2
-wait 2000
+shot levelup.png
+wait 3500
 answer wrong
 wait 30
 expect pitch_lives 2
 shot wrong.png
-wait 3000
+wait 3500
 answer wrong
-wait 3000
+wait 3500
 answer wrong
-wait 2000
+wait 2500
 expect pitch_state 3
 expect best_ear 5
 shot over.png
