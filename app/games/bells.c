@@ -16,8 +16,8 @@
 #define ROWS_MAX (ROUNDS_BEFORE + 232 + ROUNDS_AFTER)
 #define PACE_MIN 16                      /* the gap between blows, x 10 ms */
 #define PACE_MAX 32
-#define VEL_TOWER 90                     /* the tower's bells, and yours louder: you hear it among them */
-#define VEL_MINE 120
+#define VEL_TOWER 64                     /* the tower's bells, and yours ~12 dB louder and brighter: you hear it */
+#define VEL_MINE 127
 
 static struct {
     uint8_t rows[ROWS_MAX][RING_MAX];    /* the whole touch, worked out at the start */
@@ -158,7 +158,7 @@ static void ring_mine(uint32_t ms, int back)   /* your bell sounds, and swings *
 {
     int b = bl.mine >= 0 ? bl.mine : bl.bells - 1;   /* listening: the keys ring the tenor */
     snd_lock();
-    bw_bell(b, bell_note(b, bl.bells), VEL_MINE);
+    bw_bell_bright(b, bell_note(b, bl.bells), VEL_MINE);
     snd_unlock();
     bl.struck_ms[b] = ms;
     bl.struck_back[b] = (uint8_t)back;
@@ -369,6 +369,8 @@ static void bells_draw(uint32_t now)
                 }
                 cv_text(94, 110 + i * 26, &FONT_B, s, G_INK);
             }
+            cv_text(14, 190, &FONT_XS, "PICK A BELL WITH K2, THEN PRESS ANY", G_PLANK2);
+            cv_text(14, 204, &FONT_XS, "KEY EACH TIME IT IS DUE (THE PIPS).", G_PLANK2);
         }
         /* the foot: striking */
         cv_rect(0, 220, 240, 20, G_LILAC);
@@ -498,7 +500,7 @@ static void bells_where(char *t)         /* the screen, for a screen reader */
         sp_pct(t, sav.bells.best[sav.bells.method % NMETHODS_MAX]);
         text_cat(t, ". ");
     }
-    text_cat(t, "PLAY RINGS.");
+    text_cat(t, sav.bells.bell ? "ANY KEY RINGS YOUR BELL ON ITS TURN. PLAY RINGS." : "PLAY RINGS.");
 }
 
 /* the attract tune: rounds on six, then a pull of Plain Bob (214365), on chimes */

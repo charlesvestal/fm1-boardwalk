@@ -325,6 +325,9 @@ static void pitch_draw(uint32_t now)
                 cv_text(94, 64, &FONT_B, t, G_INK);
                 ear_level_text(sav.pitch.level, t);
                 cv_text(94, 84, &FONT_XS, t, G_PLANK2);
+                cv_text(14, 140, &FONT_XS, "A NOTE PLAYS: PRESS ITS KEY.", G_PLANK2);
+                cv_text(14, 154, &FONT_XS, "THE FIRST LEVELS PLAY A C4 BEFORE", G_PLANK2);
+                cv_text(14, 168, &FONT_XS, "IT, TO HEAR THE DISTANCE FROM.", G_PLANK2);
                 if (sav.pitch.best_ear) {
                     text_cat((t[0] = 0, t), "BEST ");
                     int_text(sav.pitch.best_ear, t + 5);
@@ -334,10 +337,12 @@ static void pitch_draw(uint32_t now)
                 int32_t r = 30 + (pt.played && now - pt.asked_ms < 300u ? (int32_t)(300u - (now - pt.asked_ms)) / 30 : 0);
                 fill_circle(120, 100, r, G_BLUSH);
                 text_mid(120, 84, &FONT_L, "?", G_INK);
-                text_mid(120, 140, &FONT_XS, pt.ref && !pt.played ? "C4 FIRST..." : TIMBRE_NAME[pt.timbre & 3], G_PLANK2);
+                text_mid(120, 140, &FONT_XS, pt.ref && !pt.played ? "FIRST A C4, FOR REFERENCE" :
+                         pt.played ? "NOW THE NOTE: FIND IT ON THE KEYS" : "LISTEN...", G_PLANK2);
+                text_mid(120, 152, &FONT_XS, TIMBRE_NAME[pt.timbre & 3], G_MUTE);
                 if (pt.played) {         /* the time left */
                     int32_t left = (int32_t)EAR_WAIT - (int32_t)(now - pt.asked_ms);
-                    cv_rect(60, 158, 120 * clamp(left, 0, (int32_t)EAR_WAIT) / (int32_t)EAR_WAIT, 3, G_TEAL);
+                    cv_rect(60, 166, 120 * clamp(left, 0, (int32_t)EAR_WAIT) / (int32_t)EAR_WAIT, 3, G_TEAL);
                 }
             } else {
                 int right = pt.guess == pt.target;
@@ -459,7 +464,7 @@ static void pitch_where(char *t)         /* the screen, for a screen reader */
             sp_num(t, sav.pitch.level);
             text_cat(t, ", ");
             text_cat(t, l);
-            text_cat(t, ". ");
+            text_cat(t, ". A NOTE PLAYS, PRESS ITS KEY. ");
         } else {
             text_cat(t, pt.state == PS_OVER ? "GAME OVER. SCORE " : "SCORE ");
             sp_num(t, pt.score);

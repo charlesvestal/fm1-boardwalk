@@ -351,13 +351,38 @@ static void tiles_leave(void)
     tl.state = TP_STAND;
 }
 
-static uint16_t tiles_key_col(int k)     /* the lanes on the keys, alternately shaded; a pressed lane lit */
+/* each lane its colour: its tiles, and its keys on the keyboard below them */
+static const uint16_t LANE_COL[4] = {RGB(232, 80, 91), RGB(62, 154, 176), RGB(242, 163, 58), RGB(122, 74, 110)};
+
+static uint16_t tiles_key_col(int k)     /* the lanes on the keys, each in its colour; a pressed lane bright */
 {
     int lane = lane_of(k);
     uint32_t now = plat_ms();
+    if (TL_BLACK >> k & 1u)
+        return 0;
     if (tl.flash_ms[lane] && now - tl.flash_ms[lane] < 120u)
-        return tl.flash_bad[lane] ? G_RED : G_TEAL;
-    return (lane & 1) && !(TL_BLACK >> k & 1u) ? G_PAPER2 : 0;
+        return tl.flash_bad[lane] ? G_INK : LANE_COL[lane];
+    return mix(LANE_COL[lane], G_PAPER, 170);
+}
+
+/* the FM-1's own keys: a lane's four white keys light as its tile comes to the line, so you know where to press */
+static uint32_t tiles_keys_lit(void)
+{
+    static const uint8_t WK[16] = PLAT_WHITE_KEYS;
+    int32_t t = (int32_t)(plat_ms() - tl.t0);
+    uint32_t keys = 0;
+    int i, w;
+    if (tl.state != TP_PLAY)
+        return 0;
+    for (i = 0; i < tl.ntiles; i++) {
+        int32_t dt = tl.tile_t[i] - t;
+        if (dt > 400)
+            break;
+        if (tl.tile_state[i] == TS_WAIT && dt >= -TL_GOOD)
+            for (w = 0; w < 4; w++)
+                keys |= 1u << WK[tl.tile_lane[i] * 4 + w];
+    }
+    return keys;
 }
 
 static void tiles_draw(uint32_t now)
@@ -389,7 +414,9 @@ static void tiles_draw(uint32_t now)
                 text_cat(s, "%");
                 cv_text(14, 128, &FONT_B, s, G_INK);
             }
-            cv_text(14, 160, &FONT_XS, "FOUR LANES, FOUR WHITE KEYS EACH", G_PLANK2);
+            cv_text(14, 152, &FONT_XS, "TILES FALL DOWN FOUR LANES.", G_PLANK2);
+            cv_text(14, 166, &FONT_XS, "AS ONE TOUCHES THE LINE, PRESS A", G_PLANK2);
+            cv_text(14, 180, &FONT_XS, "WHITE KEY OF ITS COLOUR (THEY LIGHT).", G_PLANK2);
         } else {
             /* the lanes, the tiles falling, the line */
             for (i = 1; i < 4; i++)
@@ -404,7 +431,8 @@ static void tiles_draw(uint32_t now)
                 if (tl.tile_state[i] == TS_HIT && yb > TL_LINE + 20)
                     continue;
                 cv_rect(tl.tile_lane[i] * 60 + 4, clamp(yb - h, 18, 240), 52, yb - clamp(yb - h, 18, 240),
-                        tl.tile_state[i] == TS_HIT ? mix(G_TEAL, G_PAPER, 150) : tl.tile_state[i] == TS_MISS ? G_RED : G_INK);
+                        tl.tile_state[i] == TS_HIT ? mix(LANE_COL[tl.tile_lane[i]], G_PAPER, 190) :
+                        tl.tile_state[i] == TS_MISS ? G_INK : LANE_COL[tl.tile_lane[i]]);
             }
             cv_rect(0, TL_LINE, 240, 2, G_TEAL);
             if (tl.state == TP_PLAY && tl.combo > 1) {
@@ -508,7 +536,8 @@ static void tiles_where(char *t)         /* the screen, for a screen reader */
         sp_num(t, tl.perfect);
         text_cat(t, ", BEST COMBO ");
         sp_num(t, tl.best_combo);
-        text_cat(t, ". ");
+        text_cat(t, ". PLAY STARTS AGAIN.");
+        return;
     } else {
         text_cat(t, "TILES. ");
     }
@@ -522,12 +551,13 @@ static void tiles_where(char *t)         /* the screen, for a screen reader */
         text_cat(t, ". BEST ");
         sp_pct(t, sav.tiles.best[sav.tiles.song % 16u]);
     }
-    text_cat(t, ". FOUR LANES, FOUR WHITE KEYS EACH. PLAY STARTS.");
+    text_cat(t, ". TILES FALL DOWN FOUR LANES OF FOUR WHITE KEYS. AS ONE REACHES THE LINE, PRESS A KEY IN ITS LANE. "
+                "PLAY STARTS.");
 }
 
 /* the attract tune: Ode to Joy's first line */
 static const uint8_t TILES_TUNE[] = {64, 64, 65, 67, 67, 65, 64, 62, 60, 60, 62, 64, 64, 0, 62, 62, 0, 0};
 
 static const game_t GAME_TILES = {"TILES", RGB(242, 163, 58), tiles_enter, tiles_leave, tiles_frame, tiles_key,
-                                  tiles_button, tiles_enc, tiles_tick, tiles_attract, tiles_best, 0,
+                                  tiles_button, tiles_enc, tiles_tick, tiles_attract, tiles_best, tiles_keys_lit,
                                   TILES_TUNE, sizeof TILES_TUNE, 280, BW_PIANO, tiles_where};

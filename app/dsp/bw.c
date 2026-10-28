@@ -15,7 +15,7 @@
 /* ---------------------------------------------------------------- commands --- */
 /* one word each: op in the top byte, then two bytes of arguments. One producer (the main loop), one consumer
  * (the render) */
-enum { C_BELL = 1, C_PAN, C_NOTE, C_SURF, C_DAMP, C_ATTRACT, C_TONE, C_GULL };
+enum { C_BELL = 1, C_PAN, C_NOTE, C_SURF, C_DAMP, C_ATTRACT, C_TONE, C_GULL, C_BELL_BRIGHT };
 #define CQ 64u
 static uint32_t cq[CQ];
 static volatile uint32_t cq_w, cq_r, cq_drop;
@@ -32,6 +32,10 @@ static void post(uint32_t op, uint32_t a, uint32_t b, uint32_t c)
     cq_w = w + 1u;
 }
 void bw_bell(int bell, int note, int vel) { post(C_BELL, (uint32_t)bell, (uint32_t)note, (uint32_t)vel); }
+void bw_bell_bright(int bell, int note, int vel)
+{
+    post(C_BELL_BRIGHT, (uint32_t)bell, (uint32_t)note, (uint32_t)vel);
+}
 void bw_bell_pan(int bell, int pan) { post(C_PAN, (uint32_t)bell, (uint32_t)(pan + 64), 0); }
 void bw_note(int note, int vel, int timbre) { post(C_NOTE, (uint32_t)note, (uint32_t)vel, (uint32_t)timbre); }
 void bw_attract_note(int note, int vel, int timbre)
@@ -93,7 +97,11 @@ static void bell_tune(bell_t *b, int note)
     b->note = note;
 }
 
-static void bell_strike(int i, int note, int vel)
+static void note_start(int note, int vel, int timbre, int attract);
+
+/* bright: the upper partials stronger, and the clapper's tock on top (a short pluck two octaves up): a bell that
+ * stands out among the others, by its tone as well as its level */
+static void bell_strike(int i, int note, int vel, int bright_strike)
 {
     bell_t *b = &bell[i];
     float v = (float)vel / 127.0f, g;
@@ -105,10 +113,12 @@ static void bell_strike(int i, int note, int vel)
     }
     g = v * v;                           /* a harder strike is louder and brighter */
     for (p = 0; p < NPART; p++) {
-        float bright = p >= 4 ? 0.5f + 0.5f * v : 1.0f;
+        float bright = p >= 4 ? (0.5f + 0.5f * v) * (bright_strike ? 1.8f : 1.0f) : 1.0f;
         b->im[p] += b->amp[p] * g * bright;
     }
     b->level = g;
+    if (bright_strike)
+        note_start(note + 24, vel / 2, BW_PLUCK, 0);
 }
 
 /* ------------------------------------------------------------------- notes --- */
@@ -321,8 +331,8 @@ static void commands(void)
         uint32_t c = cq[cq_r % CQ], op = c >> 24, a = c >> 16 & 0xFFu, b = c >> 8 & 0xFFu, v = c & 0xFFu;
         BARRIER();
         cq_r++;
-        if (op == C_BELL && a < BW_BELLS && b < 128u && v)
-            bell_strike((int)a, (int)b, (int)v);
+        if ((op == C_BELL || op == C_BELL_BRIGHT) && a < BW_BELLS && b < 128u && v)
+            bell_strike((int)a, (int)b, (int)v, op == C_BELL_BRIGHT);
         else if (op == C_PAN && a < BW_BELLS) {
             float x = ((float)b - 64.0f) / 128.0f + 0.5f;   /* 0..1, equal power */
             bell[a].pan_l = fm_cosf(x * 1.5707963f);
