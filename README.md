@@ -6,7 +6,7 @@ tower's bells, name a note by ear, play a song on falling tiles, fly a gull thro
 coaster whose track is the melody. Every game pays out tickets, and the prize counter at the start of the row trades
 them for prizes, from a sticker to a giant teddy.
 
-![The boardwalk](app/site/img/boardwalk.png) ![The prize counter](app/site/img/prizes.png) ![Coaster](app/site/img/coaster.png)
+![The boardwalk](app/site/img/boardwalk.png) ![Teacups](app/site/img/teacups.png) ![Claw](app/site/img/claw.png)
 ![Bells](app/site/img/bells.png) ![Fortune](app/site/img/fortune.png) ![Gull](app/site/img/gull.png)
 
 - **Try it in your browser** (no FM-1 needed): <https://charlesvestal.github.io/fm1-boardwalk/emu/>

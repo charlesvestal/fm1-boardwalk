@@ -7,8 +7,8 @@ coaster whose track is the melody. Every game pays out tickets, and the prize co
 them for prizes, from a sticker to a giant teddy.
 
 ![The boardwalk at golden hour: a Ferris wheel, the sea, and the row of cabinets, Striker in front](img/boardwalk.png "The boardwalk")
-![The prize counter: sixteen prizes on four shelves with their prices, the rubber duck picked](img/prizes.png "The prize counter")
-![Coaster: the train climbing a track of notes G4, A4, B4, C5, and CLEAN RUN!](img/coaster.png "Coaster")
+![Teacups: your cup spinning at 98%, PERFECT, the waltz at 178 BPM](img/teacups.png "Teacups")
+![Claw: the claw over a case of singing toys, the machine wishing for E5](img/claw.png "Claw")
 ![Fortune: Barnaby Brass, the brass seer, in his booth; his card reads AN OLD SONG WILL FEEL NEW AGAIN, lucky note E4](img/fortune.png "Fortune")
 
 Version {{VERSION}}. Installing is at your own risk; the installer can put M-VAVE's own firmware back.
