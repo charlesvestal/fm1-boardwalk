@@ -144,15 +144,13 @@ static const char *const GU_MODE[2] = {"FLAP", "SING"};
 
 static void gull_enc(int role, int steps)
 {
-    char t[4];
     if (gu.state == GS2_FLY)
         return;
     if (role == EN_K1) {
         sav.gull.mode = (uint8_t)clamp(sav.gull.mode + steps, 0, 1);
-        app_readout("GAME", GU_MODE[sav.gull.mode]);
+        app_readout("MODE", GU_MODE[sav.gull.mode]);
     } else if (role == EN_K2 && sav.gull.mode == 1) {
         sav.gull.level = (uint8_t)clamp(sav.gull.level + steps, 1, 2);
-        int_text(sav.gull.level, t);
         app_readout("LEVEL", sav.gull.level == 1 ? "1, NOTES SHOWN" : "2, BY EAR");
     } else {
         return;
@@ -281,7 +279,7 @@ static void gull_draw(uint32_t now)
         }
         if (gu.state == GS2_STAND) {
             round_rect(14, 36, 212, 136, 8, G_PAPER);
-            cv_text(24, 44, &FONT_XS, "K1 GAME", G_PLANK2);
+            cv_text(24, 44, &FONT_XS, "K1 MODE", G_PLANK2);
             cv_text(104, 42, &FONT_B, GU_MODE[sav.gull.mode & 1], G_INK);
             if (sav.gull.mode) {
                 cv_text(24, 66, &FONT_XS, "K2 LEVEL", G_PLANK2);
@@ -358,7 +356,7 @@ static void gull_where(char *t)
 {
     t[0] = 0;
     if (gu.state == GS2_STAND) {
-        text_cat(t, sav.gull.mode ? "GULL. KNOB 1, GAME SING. KNOB 2, LEVEL " : "GULL. KNOB 1, GAME FLAP. ");
+        text_cat(t, sav.gull.mode ? "GULL. KNOB 1, MODE SING. KNOB 2, LEVEL " : "GULL. KNOB 1, MODE FLAP. ");
         if (sav.gull.mode) {
             text_cat(t, sav.gull.level == 1 ? "1, NOTES SHOWN. " : "2, BY EAR. ");
             text_cat(t, "HOLD A KEY FOR YOUR HEIGHT, PLAY EACH GAP'S NOTE TO FLY THROUGH IT. ");

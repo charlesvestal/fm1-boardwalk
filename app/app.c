@@ -100,11 +100,12 @@ static void sp_pct(char *t, int32_t v)
 #include "games/whack.c"
 #include "games/gallery.c"
 #include "games/gull.c"
+#include "games/claw.c"
 #include "scene.c"
 
 /* --------------------------------------------------------------- cabinets --- */
 static const game_t *const GAMES[] = {&GAME_BELLS, &GAME_PITCH, &GAME_TILES, &GAME_ECHO, &GAME_CHORD, &GAME_SIMON,
-                                      &GAME_WHACK, &GAME_GALLERY, &GAME_GULL};
+                                      &GAME_WHACK, &GAME_GALLERY, &GAME_GULL, &GAME_CLAW};
 #define NGAMES ((int)(sizeof GAMES / sizeof GAMES[0]))
 
 /* ------------------------------------------------------------------- save --- */
@@ -171,6 +172,7 @@ void app_init(void)
     sav.bells.mode %= 3u;
     sav.gull.mode &= 1u;
     sav.gull.level = (uint8_t)clamp(sav.gull.level, 1, 2);
+    sav.claw.level = (uint8_t)clamp(sav.claw.level, 1, CL_LEVELS);
 }
 void app_render(int32_t *lr, uint32_t n, uint32_t gain_q12) { bw_render(lr, n, gain_q12); }
 void app_panic(void) { bw_panic(); }
@@ -533,6 +535,12 @@ int app_expect(const char *what, int *got)
         *got = sav.touches;
     else if (!strcmp(what, "bells_mode"))
         *got = sav.bells.mode;
+    else if (!strcmp(what, "claw_state"))    /* 0 standing, 1 ready, 2 dropping, 3 out of coins */
+        *got = cw.state;
+    else if (!strcmp(what, "claw_tickets"))
+        *got = cw.tickets;
+    else if (!strcmp(what, "claw_coins"))
+        *got = cw.coins;
     else if (!strcmp(what, "gull_state"))    /* 0 standing, 1 flying, 2 over */
         *got = gu.state;
     else if (!strcmp(what, "gull_score"))
@@ -584,7 +592,7 @@ int app_expect(const char *what, int *got)
  *   answer right|wrong      Pitch EAR: the key of the note asked, or the one above it
  *   autotune on|off         Pitch TUNE: the knobs turned against the drift, as a good ear would
  *   autotiles all|half|off  Tiles: every tile hit on time, or every other one left */
-static int host_autogull, host_mash, host_autoring, host_autoconduct, host_autotune, host_autotiles, host_autoecho, host_autosimon, host_autowhack, host_autoshoot, host_autochord;
+static int host_autoclaw, host_autogull, host_mash, host_autoring, host_autoconduct, host_autotune, host_autotiles, host_autoecho, host_autosimon, host_autowhack, host_autoshoot, host_autochord;
 int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, const char *d)
 {
     (void)b;
@@ -596,6 +604,10 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
     }
     if (!strcmp(cmd, "autotune")) {
         host_autotune = !strcmp(a, "on");
+        return 1;
+    }
+    if (!strcmp(cmd, "autoclaw")) {     /* autoclaw on|off: the claw over the wished toy, dropped */
+        host_autoclaw = !strcmp(a, "on");
         return 1;
     }
     if (!strcmp(cmd, "autogull")) {     /* autogull on|off: Gull flown through every gap */
@@ -670,6 +682,13 @@ void app_host_ms(void)
         for (k = 0; k < NKEYS; k++)
             if (wm.up_until[k])
                 whack_key(k, 1, now);
+    }
+    if (host_autoclaw && ui.game == &GAME_CLAW && cw.state == CW_READY && cw.wish >= 0 && now % 100u == 0u) {
+        int k = cw.toy[cw.wish].key;
+        if (cw.col != k)
+            claw_key(k, 1, now);
+        else if (cw.cx - (float)key_x(k) < 1.0f && (float)key_x(k) - cw.cx < 1.0f)
+            claw_drop(now);
     }
     if (host_autogull && ui.game == &GAME_GULL && gu.state == GS2_FLY) {
         int i, next = -1;
@@ -868,9 +887,30 @@ void app_speak_dump(void)
         sp_out("SCREEN", sp_buf);
     }
     ec.state = ES_STAND;
+    for (i = 1; i <= CL_LEVELS; i++) {   /* Claw: each level standing; playing, over */
+        char lv[24];
+        sav.claw.level = (uint8_t)i;
+        cw.state = CW_STAND;
+        claw_where(sp_buf);
+        sp_out("SCREEN", sp_buf);
+        int_text(i, lv);
+        text_cat(lv, ", ");
+        text_cat(lv, CL_LEVEL_NAME[i - 1]);
+        sp_join("LEVEL", lv);
+        sp_out("READOUT", sp_buf);
+    }
+    cw.tickets = 23;
+    cw.coins = 4;
+    cw.state = CW_READY;
+    claw_where(sp_buf);
+    sp_out("SCREEN", sp_buf);
+    cw.state = CW_OVER;
+    claw_where(sp_buf);
+    sp_out("SCREEN", sp_buf);
+    cw.state = CW_STAND;
     for (i = 0; i < 2; i++) {            /* Gull: both games, standing, flying, over */
         sav.gull.mode = (uint8_t)i;
-        sp_join("GAME", GU_MODE[i]);
+        sp_join("MODE", GU_MODE[i]);
         sp_out("READOUT", sp_buf);
         for (v = GS2_STAND; v <= GS2_OVER; v++) {
             gu.state = v;
@@ -890,9 +930,9 @@ void app_speak_dump(void)
         sp_join("LEVEL", t);
         sp_out("READOUT", sp_buf);
     }
-    sp_join("GAME", "EAR");
+    sp_join("MODE", "EAR");
     sp_out("READOUT", sp_buf);
-    sp_join("GAME", "TUNE");
+    sp_join("MODE", "TUNE");
     sp_out("READOUT", sp_buf);
     sav.pitch.best_ear = 9;
     sav.pitch.best_tune = 141;

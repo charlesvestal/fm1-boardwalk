@@ -63,7 +63,11 @@ typedef struct {
         uint8_t mode, level;             /* 0 flap, 1 sing; level 1 names on the posts, 2 by ear */
         uint16_t best[2];                /* posts passed, per mode */
     } gull;
-    uint8_t rsv2[16];                    /* room to grow */
+    struct {
+        uint8_t level, rsv;
+        uint16_t best;                   /* tickets in a round */
+    } claw;
+    uint8_t rsv2[12];                    /* room to grow */
 } save_t;
 extern save_t sav;
 void save_dirty(void);                   /* saved at the next quiet moment */

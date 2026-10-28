@@ -1,0 +1,18 @@
+# Claw: the claw over the wished toy (the test player), dropped: tickets won, the coins run out, the best kept
+wait 800
+turn SELECT 9
+wait 400
+expect cab 9
+tap PLAY
+wait 100
+expect game 10
+shot stand.png
+autoclaw on
+tap PLAY
+wait 3000
+shot ready.png
+wait 60000
+expect claw_state 3
+expect claw_coins 0
+expect claw_tickets >60
+shot over.png

@@ -283,7 +283,7 @@ static void pitch_enc(int role, int steps)
         return;
     if (role == EN_K1) {
         sav.pitch.mode = (uint8_t)clamp(sav.pitch.mode + steps, 0, 1);
-        app_readout("GAME", sav.pitch.mode ? "TUNE" : "EAR");
+        app_readout("MODE", sav.pitch.mode ? "TUNE" : "EAR");
     } else if (role == EN_K2 && sav.pitch.mode == 0) {
         sav.pitch.level = (uint8_t)clamp(sav.pitch.level + steps, 1, EAR_LEVELS);
         ear_level_text(sav.pitch.level, t);
@@ -348,7 +348,7 @@ static void pitch_draw(uint32_t now)
             }
             /* the middle: what to do, or what it was */
             if (pt.state == PS_STAND) {
-                cv_text(14, 40, &FONT_XS, "K1 GAME", G_PLANK2);
+                cv_text(14, 40, &FONT_XS, "K1 MODE", G_PLANK2);
                 cv_text(94, 38, &FONT_B, "EAR", G_INK);
                 cv_text(14, 66, &FONT_XS, "K2 LEVEL", G_PLANK2);
                 int_text(sav.pitch.level, t);
@@ -400,7 +400,7 @@ static void pitch_draw(uint32_t now)
         } else {
             /* the duel: two forks, the time in tune */
             if (pt.state == PS_STAND) {
-                cv_text(14, 40, &FONT_XS, "K1 GAME", G_PLANK2);
+                cv_text(14, 40, &FONT_XS, "K1 MODE", G_PLANK2);
                 cv_text(94, 38, &FONT_B, "TUNE", G_INK);
                 cv_text(14, 70, &FONT_XS, "MATCH THE RED TONE TO THE TEAL ONE.", G_PLANK2);
                 cv_text(14, 84, &FONT_XS, "THE WOBBLE STOPS WHEN THEY MATCH.", G_PLANK2);
@@ -523,7 +523,7 @@ static void pitch_where(char *t)         /* the screen, for a screen reader */
         text_cat(t, "PITCH, EAR. ");
         if (pt.state == PS_STAND) {
             ear_level_text(sav.pitch.level, l);
-            text_cat(t, "KNOB 1, GAME EAR. KNOB 2, LEVEL ");
+            text_cat(t, "KNOB 1, MODE EAR. KNOB 2, LEVEL ");
             sp_num(t, sav.pitch.level);
             text_cat(t, ", ");
             text_cat(t, l);
@@ -557,7 +557,7 @@ static void pitch_where(char *t)         /* the screen, for a screen reader */
             text_cat(t, tune_time_text());
             text_cat(t, ". ");
         } else {
-            text_cat(t, "KNOB 1, GAME TUNE. MATCH THE TONES BY EAR. THE WOBBLE STOPS WHEN THEY MATCH. ");
+            text_cat(t, "KNOB 1, MODE TUNE. MATCH THE TONES BY EAR. THE WOBBLE STOPS WHEN THEY MATCH. ");
         }
         if (sav.pitch.best_tune) {
             text_cat(t, "BEST ");

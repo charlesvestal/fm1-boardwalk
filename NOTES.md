@@ -12,7 +12,7 @@ boardwalk menu runs, Pitch and Tiles are cabinets with attract screens but no ga
   (dev FM-1_1200), USB "Boardwalk FM-1". No Bluetooth, no USB audio out.
 - Eight cabinets: **Bells** (tower, handbells, conducting), **Pitch** (EAR and TUNE), **Tiles** (five songs),
   **Echo** (rhythm call and response), **Chord Code**, **Parrot** (inspired by Simon), **Moles** (whack-a-mole),
-  **Ducks** (a shooting gallery), **Gull** (inspired by Flappy Bird). Each cabinet has a three-word blurb (game_t.blurb) under the boardwalk, and the one
+  **Ducks** (a shooting gallery), **Gull** (inspired by Flappy Bird), **Claw**. Each cabinet has a three-word blurb (game_t.blurb) under the boardwalk, and the one
   in front blinks PRESS PLAY. A design and copy pass (2026-10-28, one reviewer a game) is in the git log.
   Keys are read by the 1 kHz tick (exact times; Bells, Tiles and Echo answer in the tick itself); the black keys
   show what comes next (Bells: your place; Tiles: the next lane). The boardwalk plays each
@@ -154,6 +154,15 @@ Bells as built: K1 method (ten: Plain Hunt, Plain Bob and Grandsire Doubles; Pla
   gap is a white key's note, chimed as its posts come on; level 1 names it on the post, level 2 by ear. Posts 128 px
   apart, faster by 1.5 px/s a post; FLAP's gaps narrow as the score climbs. The keys never light.
 - The save grew (sav.gull after rsv); a save from before it loads (offsetof(save_t, gull) bytes), the rest default.
+
+## Claw (built 2026-10-28)
+
+- The case sits over the keys (a column a key, key_x): a key moves the claw over it (a soft whirr at its pitch), PLAY
+  drops. Toys each sing a note (hummed as the claw comes over one); the machine wishes for one (sparkle + its note,
+  again every 6 s): 10 tickets for it, 3 for another; big toys are triads centred on their middle (third), x2.
+  Grip: dead on 92 % (big 75), a key off 45 % (25); a slip drops it on the way up. 10 coins. K1 level: 1 notes shown
+  (on the toys and the wish), 2 by ear, 3 chords. The key under the claw glows (where it is, never where to go).
+- Knobs that choose a game's way are MODE everywhere (Pitch, Gull: was GAME; Bells' K4).
 
 ## More games still
 
