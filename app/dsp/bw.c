@@ -15,7 +15,7 @@
 /* ---------------------------------------------------------------- commands --- */
 /* one word each: op in the top byte, then two bytes of arguments. One producer (the main loop), one consumer
  * (the render) */
-enum { C_BELL = 1, C_PAN, C_NOTE, C_SURF, C_DAMP, C_ATTRACT, C_TONE, C_GULL, C_BELL_BRIGHT };
+enum { C_BELL = 1, C_PAN, C_NOTE, C_SURF, C_DAMP, C_ATTRACT, C_TONE, C_GULL, C_BELL_BRIGHT, C_DRUM };
 #define CQ 64u
 static uint32_t cq[CQ];
 static volatile uint32_t cq_w, cq_r, cq_drop;
@@ -50,6 +50,7 @@ void bw_tone(int slot, int cents, int level)
          (uint32_t)cents >> 8, (uint32_t)cents);
 }
 void bw_surf(int level) { post(C_SURF, (uint32_t)level, 0, 0); }
+void bw_drum(int drum, int vel) { post(C_DRUM, (uint32_t)drum, (uint32_t)vel, 0); }
 void bw_gull(void) { post(C_GULL, 0, 0, 0); }
 void bw_bells_damp(void) { post(C_DAMP, 0, 0, 0); }
 uint32_t bw_cmds_dropped(void) { return cq_drop; }
@@ -213,6 +214,47 @@ static inline float noise(void)
     return (float)(int32_t)rng * (1.0f / 2147483648.0f);
 }
 
+/* ------------------------------------------------------------------- drums --- */
+/* a kick (a sine falling from 160 to 50 Hz), a hat (noise, its lows taken out, short), two woodblocks (a sine and an
+ * inharmonic partial, very short) and a clap (noise in three quick bursts). One voice each: a new hit restarts it */
+static struct {
+    float env, ph, lp, hp;
+    uint32_t n;                          /* samples since the hit */
+} drum[BW_NDRUMS];
+
+static inline float drum_sample(int d)
+{
+    float s = 0.0f, x;
+    uint32_t n = drum[d].n++;
+    if (d == BW_KICK) {
+        float f = 50.0f + 110.0f * fm_expf(-(float)n * (1.0f / 1300.0f));
+        drum[d].ph += f / (float)BW_RATE;
+        drum[d].ph -= (float)(int)drum[d].ph;
+        s = fm_sin_turns(drum[d].ph) * drum[d].env;
+        drum[d].env *= 0.9997f;
+    } else if (d == BW_HAT) {
+        rng = rng * 1664525u + 1013904223u;
+        x = (float)(int32_t)rng * (1.0f / 2147483648.0f);
+        drum[d].lp += 0.5f * (x - drum[d].lp);
+        s = (x - drum[d].lp) * drum[d].env;
+        drum[d].env *= 0.9975f;
+    } else if (d == BW_BLOCK_HI || d == BW_BLOCK_LO) {
+        float f = d == BW_BLOCK_HI ? 1250.0f : 820.0f;
+        drum[d].ph += f / (float)BW_RATE;
+        drum[d].ph -= (float)(int)drum[d].ph;
+        s = (fm_sin_turns(drum[d].ph) + 0.4f * fm_sin_turns(drum[d].ph * 2.76f)) * drum[d].env;
+        drum[d].env *= 0.9988f;
+    } else {
+        rng = rng * 1664525u + 1013904223u;
+        x = (float)(int32_t)rng * (1.0f / 2147483648.0f);
+        drum[d].lp += 0.3f * (x - drum[d].lp);   /* a band of noise: low-passed, then its lows taken out */
+        drum[d].hp += 0.05f * (drum[d].lp - drum[d].hp);
+        s = (drum[d].lp - drum[d].hp) * drum[d].env * 2.0f;
+        drum[d].env *= n < 1800u && n % 450u == 449u ? 2.2f : 0.9988f;   /* three bursts, 10 ms apart */
+    }
+    return s;
+}
+
 /* ------------------------------------------------- reverb: Dattorro's plate --- */
 /* J. Dattorro, "Effect Design, Part 1", JAES 1997 (as in FoMni and AMB-1): a predelay, four input diffusers, then a
  * figure-eight tank of two halves, each a modulated allpass, a delay, a damping lowpass, an allpass and a delay,
@@ -338,6 +380,8 @@ void bw_panic(void)
     for (i = 0; i < BW_TONES; i++)
         tone[i].level = tone[i].level_target = 0.0f;
     gull.calls = gull.left = 0;
+    for (i = 0; i < BW_NDRUMS; i++)
+        drum[i].env = 0.0f;
     surf_target = surf_level = 0.0f;
 }
 
@@ -366,8 +410,14 @@ static void commands(void)
             if (t->level < 1e-4f)        /* from silence: no glide in pitch */
                 t->inc = t->inc_target;
             t->level_target = (float)(a & 0x7Fu) * 0.0025f;
-        } else if (op == C_GULL)
+        } else if (op == C_GULL) {
             gull_now = 1;
+        } else if (op == C_DRUM && a < BW_NDRUMS) {
+            static const float LEVEL[BW_NDRUMS] = {0.55f, 0.12f, 0.30f, 0.30f, 0.25f};
+            drum[a].env = LEVEL[a] * (float)(b ? b : 100u) / 127.0f;
+            drum[a].n = 0;
+            drum[a].ph = 0.0f;
+        }
         else if (op == C_SURF)
             surf_target = (float)(a > 100u ? 100u : a) * 0.01f;
         else if (op == C_DAMP)
@@ -472,6 +522,13 @@ void bw_render(int32_t *lr, uint32_t n, uint32_t gain_q12)
             r += s;
             wet += 0.1f * s;
         }
+        for (i = 0; i < BW_NDRUMS; i++)
+            if (drum[i].env > 1e-5f) {
+                s = drum_sample(i);
+                l += s;
+                r += s;
+                wet += 0.08f * s;
+            }
         if (gull.calls) {
             if (gull.left <= 0) {        /* the next cry, after a breath */
                 gull.left = 44100 * 40 / 100;

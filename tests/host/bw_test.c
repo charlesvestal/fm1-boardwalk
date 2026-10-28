@@ -111,6 +111,14 @@ int main(int argc, char **argv)
     }
     run_ms(4000);
     CHECK(run_ms(100) < 0.002f, "the notes died away");
+    for (i = 0; i < BW_NDRUMS; i++) {    /* every drum sounds, and is short */
+        bw_drum(i, 110);
+        p = run_ms(60);
+        CHECK(p > 0.02f && p < 0.99f, "drum %d: %.3f", i, (double)p);
+        run_ms(600);
+        CHECK(run_ms(50) < 0.01f, "drum %d dies away", i);
+    }
+    run_ms(4000);
     bw_attract(0);                       /* an attract note at level 0: silent */
     run_ms(300);
     bw_attract_note(72, 120, BW_CHIME);

@@ -30,6 +30,8 @@ void bw_attract(int level);                  /* the attract tunes' level, 0..100
 void bw_blip(int note, int vel);             /* bw_note(note, vel, BW_PLUCK) */
 void bw_tone(int slot, int cents, int level);   /* a sustained tone: slot 0..BW_TONES-1, pitch in cents (MIDI note x
                                                  * 100: 6900 is A4), level 0..100 (0: off); pitch and level glide */
+enum { BW_KICK, BW_HAT, BW_BLOCK_HI, BW_BLOCK_LO, BW_CLAP, BW_NDRUMS };
+void bw_drum(int drum, int vel);             /* a drum: Echo's groove, its calls and your answers */
 void bw_surf(int level);                     /* 0..100: the sea, and its gulls */
 void bw_gull(void);                          /* a gull calls now */
 void bw_bells_damp(void);                    /* every bell stopped (a ringer's hand on the rope: back to the menu) */

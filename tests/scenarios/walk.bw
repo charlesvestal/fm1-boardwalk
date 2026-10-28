@@ -20,11 +20,15 @@ tap HOME
 wait 200
 expect game 0
 tap OCT+
-tap OCT+
 wait 400
 expect cab 2
 shot tiles.png
-turn SELECT -2
+tap OCT+
+tap OCT+
+wait 400
+expect cab 3
+shot echo.png
+turn SELECT -3
 wait 400
 expect cab 0
 turn K1 -4

@@ -10,7 +10,9 @@ boardwalk menu runs, Pitch and Tiles are cabinets with attract screens but no ga
 - **Built on fm1-base** (submodule `base/`, at fm1-base `main` 4587fda), laid out as AMB-1 / CTL-1: `./build.sh`
   (`PYTHON=/opt/homebrew/bin/python3.14`, podman running), `sh tests/run_tests.sh`. Identity **FM-1_12**
   (dev FM-1_1200), USB "Boardwalk FM-1". No Bluetooth, no USB audio out.
-- All three cabinets open: **Bells**, **Pitch** (EAR and TUNE), **Tiles** (five songs). The boardwalk plays each
+- Four cabinets: **Bells**, **Pitch** (EAR and TUNE), **Tiles** (five songs), **Echo** (rhythm call and response).
+  Keys are read by the 1 kHz tick (exact times; Bells, Tiles and Echo answer in the tick itself); the black keys
+  show what comes next (Bells: your place; Tiles: the next lane). The boardwalk plays each
   cabinet's attract tune quietly over the sea, fading as the row moves; K1 the sea, K2 the tunes. Gulls call.
 - Screen reader: every screen on WHERE, knob values as they settle, answers at once; fm1-reader's audit is clean
   (`app/words.tsv`, `app/words.allow`, `app/web/words/`). The words link points at
@@ -108,6 +110,20 @@ Bells as built: K1 method (ten: Plain Hunt, Plain Bob and Grandsire Doubles; Pla
 - Windows: 60 ms perfect, 150 ms good; a press with no tile near is a clunk and breaks the combo. The tile's first
   note sounds when hit (early too); its other notes at their times. The bass and a count-in from the tick.
 - K1 song, K2 level, K3 tempo (60–140 %). Best: % of notes played, per song.
+
+## Echo (built 2026-10-28)
+
+- A groove (kick, hat) runs; a bar of woodblock plays a call, the next bar you answer on any key (a clap), then the
+  next call, without stopping. Each of the call's hits takes your nearest free hit: within 40 ms whole, 90 ms 70 %,
+  150 ms 35 %; an extra hit -50 %. 70 % passes; four passes go up a level (quarters, eighths, off the beat,
+  sixteenths, anything); three misses and it is over. Calls written out in `games/echo.c` (six a level).
+- K1 tempo (70-140 bpm), K2 the level to start at. Best: answers passed.
+
+## More games (2026-10-28)
+
+From the list still: **Chord Code** (Mastermind with chords), **a puzzle** (Lumines-like, cleared lines play chords),
+Bells' handbells and conducting. New: **Whack-a-mole** on the keys' lights (each whack a note of a scale: whacking
+makes a tune); **Shooting gallery** (targets at pitches scroll by, the matching key shoots).
 
 Next: on the FM-1 (CPU, frame rate, the sound, Tiles' feel); then MIDI songs for Tiles (the user's own, as the
 notes above plan), and Bells' handbells and conducting.

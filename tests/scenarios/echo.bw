@@ -1,0 +1,27 @@
+# Echo: every call answered on time passes, the level goes up after four; with no answers, three misses and over
+wait 800
+tap OCT+
+tap OCT+
+tap OCT+
+wait 400
+expect cab 3
+tap PLAY
+wait 100
+expect game 4
+shot stand.png
+autoecho on
+tap PLAY
+wait 5000
+shot call.png
+wait 1200
+shot answer.png
+wait 20000
+expect echo_state 1
+expect echo_lives 3
+expect echo_score >3
+expect echo_pct >89
+expect echo_level >1
+autoecho off
+wait 20000
+expect echo_state 2
+shot over.png

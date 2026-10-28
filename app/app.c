@@ -94,10 +94,11 @@ static void sp_pct(char *t, int32_t v)
 #include "games/bells.c"
 #include "games/pitch.c"
 #include "games/tiles.c"
+#include "games/echo.c"
 #include "scene.c"
 
 /* --------------------------------------------------------------- cabinets --- */
-static const game_t *const GAMES[] = {&GAME_BELLS, &GAME_PITCH, &GAME_TILES};
+static const game_t *const GAMES[] = {&GAME_BELLS, &GAME_PITCH, &GAME_TILES, &GAME_ECHO};
 #define NGAMES ((int)(sizeof GAMES / sizeof GAMES[0]))
 
 /* ------------------------------------------------------------------- save --- */
@@ -122,6 +123,8 @@ static void save_defaults(void)
     sav.pitch.level = 1;
     sav.tiles.level = 1;
     sav.tiles.tempo = 100;
+    sav.echo.tempo = 100;
+    sav.echo.level = 1;
 }
 
 /* ---------------------------------------------------------------- contract --- */
@@ -141,6 +144,10 @@ void app_init(void)
     sav.tiles.tempo = (uint8_t)clamp(sav.tiles.tempo, 60, 140);
     sav.surf = (uint8_t)clamp(sav.surf, 0, 100);
     sav.tunes = (uint8_t)clamp(sav.tunes, 0, 100);
+    if (!sav.echo.tempo)                 /* a save from before Echo */
+        sav.echo.tempo = 100;
+    sav.echo.tempo = (uint8_t)clamp(sav.echo.tempo, 70, 140);
+    sav.echo.level = (uint8_t)clamp(sav.echo.level, 1, EC_LEVELS);
 }
 void app_render(int32_t *lr, uint32_t n, uint32_t gain_q12) { bw_render(lr, n, gain_q12); }
 void app_panic(void) { bw_panic(); }
@@ -338,7 +345,7 @@ static void input(void)
         if (g && g->enc)
             g->enc((int)k, (int)e);
         else if (!g && (k == EN_SELECT || k == EN_ALGO))
-            walk(e > 0 ? 1 : -1);
+            walk((int)e);                /* as far as it turned */
         else if (!g && (k == EN_K1 || k == EN_K2))
             boardwalk_knob((int)k, (int)e);
     }
@@ -392,6 +399,7 @@ static void lights(void)
     if (g) {
         b = 1u << B_HOME | 1u << B_PLAY;
         plat_play_red((g == &GAME_BELLS && bl.ringing) || (g == &GAME_TILES && tl.state == TP_PLAY) ||
+                      (g == &GAME_ECHO && ec.state == ES_PLAY) ||
                       (g == &GAME_PITCH && (pt.state == PS_ASK || pt.state == PS_ANSWERED)));
         if (g->keys_lit)
             keys = g->keys_lit(&mid);
@@ -412,7 +420,8 @@ void app_frame(void)
     ann_tick(now);
     /* save when nothing is ringing (a flash write holds the sound a moment) */
     if (dirty && now - dirty_ms > 1500u && !(ui.game == &GAME_BELLS && bl.ringing) &&
-        !(ui.game == &GAME_TILES && tl.state == TP_PLAY) && !(ui.game == &GAME_PITCH && pt.state == PS_ASK)) {
+        !(ui.game == &GAME_TILES && tl.state == TP_PLAY) && !(ui.game == &GAME_PITCH && pt.state == PS_ASK) &&
+        !(ui.game == &GAME_ECHO && ec.state == ES_PLAY)) {
         dirty = 0;
         if (plat_store_save(OBJ_SAVE, &sav, sizeof sav) != 0)
             app_warn("NOT SAVED", "THE FLASH DID NOT TAKE IT");
@@ -488,6 +497,16 @@ int app_expect(const char *what, int *got)
         *got = tl.notes_played;
     else if (!strcmp(what, "tiles_notes"))
         *got = tl.nnotes;
+    else if (!strcmp(what, "echo_state"))    /* 0 standing, 1 playing, 2 over */
+        *got = ec.state;
+    else if (!strcmp(what, "echo_score"))
+        *got = ec.score;
+    else if (!strcmp(what, "echo_lives"))
+        *got = ec.lives;
+    else if (!strcmp(what, "echo_pct"))      /* the last answer, % */
+        *got = ec.last_pct;
+    else if (!strcmp(what, "echo_level"))
+        *got = ec.level;
     else if (!strcmp(what, "clunks_stray"))  /* Tiles: presses that found no tile */
         *got = tl.stray;
     else if (!strcmp(what, "tiles_missed")) {
@@ -505,7 +524,7 @@ int app_expect(const char *what, int *got)
  *   answer right|wrong      Pitch EAR: the key of the note asked, or the one above it
  *   autotune on|off         Pitch TUNE: the knobs turned against the drift, as a good ear would
  *   autotiles all|half|off  Tiles: every tile hit on time, or every other one left */
-static int host_autotune, host_autotiles;
+static int host_autotune, host_autotiles, host_autoecho;
 int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, const char *d)
 {
     (void)b;
@@ -517,6 +536,10 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
     }
     if (!strcmp(cmd, "autotune")) {
         host_autotune = !strcmp(a, "on");
+        return 1;
+    }
+    if (!strcmp(cmd, "autoecho")) {     /* autoecho on|off: every call answered on time */
+        host_autoecho = !strcmp(a, "on");
         return 1;
     }
     if (!strcmp(cmd, "autotiles")) {
@@ -535,6 +558,11 @@ void app_host_ms(void)
             pitch_enc(EN_K2, -1);
         else if (pt.err < -1.0f)
             pitch_enc(EN_K2, 1);
+    }
+    if (host_autoecho && ui.game == &GAME_ECHO && ec.state == ES_PLAY && (int32_t)(now - ec.t0) >= 0) {
+        int32_t t = (int32_t)(now - ec.t0), bar = t / bar_ms(), st = t % bar_ms();
+        if (bar >= 2 && !(bar & 1) && st % ec.step == 0 && (call_at(bar) >> (st / ec.step) & 1u))
+            echo_key(9, 1, now);
     }
     if (host_autotiles && ui.game == &GAME_TILES && tl.state == TP_PLAY) {
         int32_t t = (int32_t)(now - tl.t0);

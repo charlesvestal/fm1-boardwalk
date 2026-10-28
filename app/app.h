@@ -45,7 +45,11 @@ typedef struct {
         uint8_t song, level, tempo, rsv; /* level 0 easy, 1 normal, 2 hard; tempo in % */
         uint8_t best[16];                /* % of the notes played, per song */
     } tiles;
-    uint8_t rsv[36];                     /* room to grow */
+    struct {
+        uint8_t tempo, level;            /* bpm; the level to start at */
+        uint16_t best;                   /* answers passed in one game */
+    } echo;
+    uint8_t rsv[32];                     /* room to grow */
 } save_t;
 extern save_t sav;
 void save_dirty(void);                   /* saved at the next quiet moment */
