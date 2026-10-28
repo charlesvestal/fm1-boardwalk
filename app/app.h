@@ -1,0 +1,51 @@
+/* SPDX-License-Identifier: MPL-2.0
+ * Copyright (C) 2026 Charles Vestal */
+/* Boardwalk: an arcade of music games on a golden-hour boardwalk. The app's half of the contract with fm1-base
+ * (device/unity.c, host/plat_host.c), and what is saved. */
+#pragma once
+#include <stdint.h>
+#include "plat.h"
+#include "bw.h"
+#include "ringing.h"
+
+#define APP_NAME "BOARDWALK"
+#define APP_SPLASH_RGB RGB(247, 169, 139)
+#define APP_BLOCK 256u                   /* frames per audio block: 5.8 ms at 44.1 kHz */
+#define APP_TICK                         /* 1 kHz: the tower rings its bells on time (games' app_tick) */
+void app_tick(void);
+
+/* the store: the save at 0xFC000, the panel calibration at 0xDC000 */
+enum { OBJ_SAVE, OBJ_PANEL, OBJ_NOBJ };
+#define APP_STORE_MAP {0xFC000u, 0xDC000u}
+
+#define SAVE_MAGIC 0x4B4C5742u           /* "BWLK" */
+#define SAVE_FORMAT 1u
+#define NMETHODS_MAX 16
+typedef struct {
+    uint32_t magic, format;
+    uint8_t cab;                         /* the cabinet in front of you */
+    uint8_t surf;                        /* the sea's level, 0..100 */
+    uint8_t rsv0[2];
+    struct {
+        uint8_t method;                  /* RING_METHODS */
+        uint8_t bell;                    /* yours: 0 listen, 1..n */
+        uint8_t pace;                    /* the gap between blows, in 10 ms */
+        uint8_t rsv;
+        uint8_t best[NMETHODS_MAX];      /* the best striking per method, %, 0 = not rung yet */
+    } bells;
+    uint8_t rsv[64];                     /* room for the games to come */
+} save_t;
+extern save_t sav;
+void save_dirty(void);                   /* saved at the next quiet moment */
+
+/* the contract: the platform calls these */
+void app_init(void);
+void app_render(int32_t *lr, uint32_t n, uint32_t master_q12);
+void app_panic(void);
+void app_ui_init(void);
+void app_frame(void);
+void app_input_only(void);
+void app_say(const char *a, const char *b);
+
+#define APP_HOST_EXPECT
+int app_expect(const char *what, int *got);

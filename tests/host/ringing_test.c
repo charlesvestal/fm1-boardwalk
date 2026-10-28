@@ -1,0 +1,99 @@
+/* SPDX-License-Identifier: MPL-2.0
+ * Copyright (C) 2026 Charles Vestal */
+/* The ringing core (app/games/ringing.c) on the host: every method's plain course comes round at its known length,
+ * true (no row twice), every change a legal one (a bell moves at most one place); the notation's parts; the
+ * handstroke gap; the striking score. */
+#include <stdio.h>
+#include <string.h>
+#include "ringing.h"
+
+static int fails;
+#define CHECK(c, ...) do { if (!(c)) { printf("FAIL %s:%d: ", __FILE__, __LINE__); printf(__VA_ARGS__); \
+                                       printf("\n"); fails++; } } while (0)
+
+static void row_text(const uint8_t *row, int n, char *t)
+{
+    int i;
+    for (i = 0; i < n; i++)
+        t[i] = (char)('1' + row[i]);
+    t[n] = 0;
+}
+
+/* the plain course: its length, true, and each change legal */
+static void course(int m, int want)
+{
+    static uint8_t seen[1024][RING_MAX];
+    const ring_method_t *me = &RING_METHODS[m];
+    ring_t r;
+    int n = 0, i, j;
+    CHECK(ring_start(&r, me), "%s %d: bad notation", me->name, me->stage);
+    if (!r.nlead)
+        return;
+    memcpy(seen[n++], r.row, RING_MAX);
+    do {
+        uint8_t before[RING_MAX];
+        memcpy(before, r.row, RING_MAX);
+        ring_next(&r);
+        for (i = 0; i < r.bells; i++) {
+            int d = ring_place(&r, i) - (int)(memchr(before, i, RING_MAX) ? (uint8_t *)memchr(before, i, RING_MAX) - before : -9);
+            CHECK(d >= -1 && d <= 1, "%s %d: bell %d jumped %d at change %d", me->name, me->stage, i + 1, d, r.at);
+        }
+        CHECK(r.row[r.bells - 1] == r.bells - 1 || !(me->stage & 1), "%s: the cover moved", me->name);
+        if (!r.round)
+            for (j = 0; j < n; j++)
+                if (!memcmp(seen[j], r.row, RING_MAX)) {
+                    char t[RING_MAX + 1];
+                    row_text(r.row, r.bells, t);
+                    CHECK(0, "%s %d: row %s again at change %d", me->name, me->stage, t, r.at);
+                    return;
+                }
+        if (n < 1024)
+            memcpy(seen[n++], r.row, RING_MAX);
+    } while (!r.round && r.at < 1000);
+    CHECK(r.at == want, "%s %d: came round after %d changes, want %d", me->name, me->stage, r.at, want);
+}
+
+int main(void)
+{
+    ring_change_t c[RING_LEAD_MAX];
+    uint8_t row[8] = {0, 1, 2, 3, 4, 5, 6, 7};
+    char t[9];
+    static const int LEN[] = {10, 12, 40, 30, 60, 120, 120, 16, 112, 224};   /* the plain courses, in RING_METHODS' order */
+    int i;
+    int32_t ideal[4] = {0, 200, 400, 600}, hit[4];
+
+    /* the notation */
+    CHECK(ring_lead("x16x16x16,12", 6, c, RING_LEAD_MAX) == 12, "Plain Bob Minor's lead is 12");
+    CHECK(c[0] == 0 && c[1] == 0x21 && c[10] == 0 && c[11] == 0x03, "x16 ... x 12");
+    CHECK(ring_lead("3,1.5.1.5.1", 5, c, RING_LEAD_MAX) == 10, "Grandsire Doubles' lead is 10");
+    CHECK(ring_lead("3.1.5.3.1.3.1.3.5.1.3.1", 5, c, RING_LEAD_MAX) == 12, "Stedman's six-pair: no palindrome");
+    CHECK(ring_lead("x", 5, c, RING_LEAD_MAX) == 0, "x on odd bells");
+    CHECK(ring_lead("13", 6, c, RING_LEAD_MAX) == 0, "13 on six leaves a single bell between");
+    CHECK(ring_lead("17", 6, c, RING_LEAD_MAX) == 0, "no seventh place on six");
+    ring_lead("5", 5, c, 4);
+    CHECK(c[0] == 0x10, "5 on five: only fifth's place");
+    ring_lead("1", 6, c, 4);
+    CHECK(c[0] == 0x21, "1 on six implies 16");
+    ring_apply(row, 6, 0);
+    row_text(row, 6, t);
+    CHECK(!strcmp(t, "214365"), "x from rounds: %s", t);
+
+    for (i = 0; i < RING_NMETHODS; i++)
+        course(i, LEN[i]);
+
+    /* the handstroke gap: rows 0 and 1 (hand, back) without a gap between, then a gap before row 2 */
+    CHECK(ring_time(0, 0, 6, 200) == 0 && ring_time(1, 0, 6, 200) == 1200 && ring_time(2, 0, 6, 200) == 2600,
+          "the handstroke gap");
+
+    /* striking */
+    CHECK(ring_score(ideal, ideal, 4, 200) == 100, "perfect");
+    for (i = 0; i < 4; i++)
+        hit[i] = ideal[i] + (i & 1 ? 50 : -50);
+    CHECK(ring_score(hit, ideal, 4, 200) == 50, "50 ms off on a 200 ms gap: %d", ring_score(hit, ideal, 4, 200));
+    for (i = 0; i < 4; i++)
+        hit[i] = ideal[i] + 500;
+    CHECK(ring_score(hit, ideal, 4, 200) == 0, "way off");
+
+    printf(fails ? "ringing: %d failed\n" : "ringing: ok\n", fails);
+    return fails != 0;
+}

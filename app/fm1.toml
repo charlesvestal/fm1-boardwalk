@@ -1,0 +1,15 @@
+# Boardwalk's build settings (fm1-base's tools/build.py: ./build.sh)
+name = "BOARDWALK"             # the build's files: boardwalk.fwsc, boardwalk-X.Y.fwsc
+id_prefix = "FM-1_12"          # package identity: dev FM-1_1200, releases FM-1_12XXYYZZ
+usb_manufacturer = "Boardwalk"
+usb_product = "Boardwalk FM-1"
+ble = false                    # an arcade: no radio
+usb_audio_out = false          # nothing to play through it
+words = "words.tsv"
+include = ["dsp", "games"]
+o2 = ["dsp/bw.c"]              # the sound engine, at -O2
+# the site
+tagline = "an arcade of music games for the FM-1"
+repo = "https://github.com/charlesvestal/fm1-boardwalk"
+licence = "MPL-2.0"
+credits = "Built on fm1-base and felucca-bsp, from Felucca by Leo Kuroshita (Hügelton Instruments)."

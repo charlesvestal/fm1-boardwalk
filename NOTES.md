@@ -1,8 +1,21 @@
-# Boardwalk (parked)
+# Boardwalk
 
 An arcade firmware for the FM-1: a row of game cabinets on a seaside boardwalk. Private.
 Brainstormed 2026-10-08 (session c0938ee9), dropped the same afternoon for Life, which became its own
-firmware (`fm1-life`). No code was written; this folder holds the decisions and the mockups.
+firmware (`fm1-life`). Picked up again 2026-10-28 on fm1-base (MPL-2.0): Bells runs (listen and ring), the
+boardwalk menu runs, Pitch and Tiles are cabinets with attract screens but no game yet.
+
+## Status (2026-10-28)
+
+- **Built on fm1-base** (submodule `base/`, at fm1-base `main` 4587fda), laid out as AMB-1 / CTL-1: `./build.sh`
+  (`PYTHON=/opt/homebrew/bin/python3.14`, podman running), `sh tests/run_tests.sh`. Identity **FM-1_12**
+  (dev FM-1_1200), USB "Boardwalk FM-1". No Bluetooth, no USB audio out.
+- Image 91 KB; RAM 28.7 of 96 KB; pool 206 of 336 KB (the plate ~139 KB, the canvas 69 KB).
+- Not yet on the hardware: the render's CPU, the frame rate of full-screen redraws, and how the bells sound
+  through the FM-1's speaker are all still to read on the device.
+- Tests: the ringing core (all ten methods' plain courses true and at their known lengths), the engine
+  (`app/build/tests/rounds.wav`: a plain course of Plain Bob Minor to listen to), scenarios for the boardwalk,
+  listening, and striking on time (90 %+, the best kept across a reboot).
 
 Mockups in `mockups/` (open in a browser):
 - `cabinets.html`: the opening screen, cabinets in front of the boardwalk; ← → slide the row. **Golden hour (B) was picked.**
@@ -31,42 +44,50 @@ every other row).
 - **Sound:** modal FM / additive bells with the classic partials (hum, prime, tierce, quint, nominal), long decays.
 - Check the licence of the Central Council of Church Bell Ringers' method library before shipping more than a curated handful.
 
-## Design §1: Architecture (agreed, not built)
+## Design §1: Architecture (built 2026-10-28, on fm1-base)
 
 ```
-firmware/src/
-  app/ui.c            the shell: boardwalk menu ↔ game, button routing, saving, glow LEDs
-  app/boardwalk.c     the opening scene: sky, wheel, sea, planks, cabinets, OCT± scrolling
+app/
+  app.h               the contract with fm1-base, the store (OBJ_SAVE at 0xFC000), save_t
+  app.c               the shell: boardwalk <-> game, button routing, saving, lights; the unity build
+  art.c               drawing in two 240 x 120 bands; golden hour's colours; the tower bell
+  scene.c             the boardwalk: sky, sun, wheel, gulls, sea, bulbs, planks, the cabinets
   games/game.h        the game interface
   games/bells.c       Bells: Listen + Ring
-  games/ringing.h     pure C: place notation → rows, methods table, striking score (host-tested)
-  games/<name>.c      one file per further game
-  dsp/bw.c, bw.h      the sound engine (audio interrupt)
+  games/ringing.c/.h  pure C: place notation -> rows, the methods, the striking score (host-tested)
+  dsp/bw.c, bw.h      the sound engine (audio interrupt, -O2)
+tests/host/           ringing_test.c, bw_test.c
+tests/scenarios/*.bw  the app in fm1-base's simulator
 ```
 
 ```c
 typedef struct {
     const char *name;                     /* the marquee */
-    uint16_t cab, cab_tint;               /* cabinet colours */
-    void (*enter)(void), (*leave)(void);
-    void (*frame)(uint32_t ms);           /* logic, main loop */
-    void (*key)(int k, int down, uint32_t t_us);   /* timestamped: Bells scores timing */
+    uint16_t cab;                         /* the cabinet's colour */
+    void (*enter)(void), (*leave)(void);  /* enter 0: a cabinet not open yet */
+    void (*frame)(uint32_t ms);           /* logic and drawing, main loop, ~30 fps */
+    void (*key)(int k, int down, uint32_t ms);
     void (*button)(int b, int down);
     void (*enc)(int role, int steps);
-    void (*draw)(void);                   /* full game screen */
-    void (*attract_draw)(int x, int y, int w, int h);  /* the cabinet's little screen */
-    void (*attract_sound)(int on);        /* start / stop its quiet tune */
-    void (*score_text)(char *buf);        /* "best 94%" */
+    void (*tick)(uint32_t ms);            /* 1 kHz timer interrupt (APP_TICK): Bells rings the tower's bells here */
+    void (*attract)(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t ms);
+    void (*best)(char *buf);              /* "BEST 94%" */
+    uint32_t (*keys_lit)(void);
 } game_t;
 ```
 
-- **Controls:** in the menu, OCT− / OCT+ scroll the cabinets and PLAY or SELECT enters a game. In a game, HOME goes back to the boardwalk and everything else belongs to the game. MASTER is always volume. Felucca's safety stays (OCT− + OCT+ held 5 s = update mode).
-- **Sound engine `bw`** (audio interrupt): the main loop posts commands (`bw_bell(bell, strike)`, `bw_blip(note, vel)`, `bw_surf(level)`, `bw_attract_gain(g)`), and the render drains them at the start of each block, like FoMni's `om_cmd`. Voices: bell (~8, modal), blip (short FM / pulse), surf (noise + swell, gull chirps). One plate reverb (Dattorro). Cabinet crossfade = a gain ramp per source.
-- **Drawing:** gfx.c has a canvas strip (up to 240×144), no full framebuffer. The scene redraws in two bands per frame, ~25 fps. First check whether a full 240×240 canvas fits in the shared RAM pool (115 KB of 336 KB) next to the reverb.
-- **Saving:** one object (3.75 KB): format version, last cabinet, settings (volume, surf level), each game's best scores and progress.
-- **Identity:** FM-1_4 went to Life; the next free digit is 2. Own USB name.
+The sound engine takes commands from the main loop and from the tick; the main loop's are posted with the tick
+locked out (`snd_lock`), so the queue keeps one producer at a time.
 
-Still to design: the rest of Bells, the other games, the boardwalk scene, testing.
+- **Controls:** in the menu, OCT− / OCT+ (or turning SELECT) scroll the cabinets and PLAY enters a game. In a game, HOME goes back to the boardwalk and everything else belongs to the game. MASTER is always volume. fm1-base's safety stays (REC held at power-on = update mode).
+- **Sound engine `bw`** (audio interrupt): commands (`bw_bell(slot, note, vel)`, `bw_bell_pan`, `bw_blip(note, vel)`, `bw_surf(level)`, `bw_bells_damp`) drained at the start of each block. Bells: 8 slots, 7 partials each (hum, prime, tierce, quint, nominal, superquint, octave nominal) as decaying resonators. Blip: 4 FM plucks. Surf: noise with a 7 s swell. One Dattorro plate (AMB-1's). Not built yet: gull chirps, the attract tunes and their crossfade.
+- **Drawing:** two 240 × 120 bands per frame on gfx.c's canvas, ~30 fps (to check on the device).
+- **Saving:** one object (`save_t`): format, the cabinet in front, the surf level, Bells' method / bell / pace and its best per method, room for the others. Saved 1.5 s after a change, never while bells ring (a flash write holds the sound).
+- **Identity:** FM-1_12. Own USB name.
+
+Bells as built: K1 method (ten: Plain Hunt, Plain Bob and Grandsire Doubles; Plain Hunt, Plain Bob, Kent TB and Cambridge S Minor; Plain Hunt, Plain Bob and Cambridge S Major), K2 your bell (LISTEN or 1..n), K3 pace (160–320 ms a blow). PLAY rings 4 rows of rounds, the plain course, 2 rows of rounds, or stands. Any key strikes your bell; a blow a gap late is a miss. The bells' notes: the top of a major scale down to the tenor.
+
+Next: hear and see it on the FM-1 (CPU, frame rate, the bells' sound); then the Pitch cabinet; the menu's attract tunes; the screen reader's words for every screen (words.tsv has the first ones).
 
 ## Game ideas (2026-10-09)
 

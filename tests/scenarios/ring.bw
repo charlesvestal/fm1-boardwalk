@@ -1,0 +1,30 @@
+# Bells: listening to Plain Bob Minor, then ringing bell 2 on the keys, on time and then not at all; the best kept
+wait 800
+tap PLAY
+wait 100
+expect game 1
+expect method 4
+expect bell 0
+tap PLAY
+wait 3000
+expect ringing 1
+shot listen.png
+wav listen.wav
+wait 4000
+wavstop
+tap PLAY
+wait 200
+expect ringing 0
+turn K2 2
+wait 50
+expect bell 2
+tap PLAY
+wait 3000
+shot ring.png
+wait 15000
+expect ringing 1
+tap PLAY
+wait 200
+expect ringing 0
+expect score 0
+shot stood.png

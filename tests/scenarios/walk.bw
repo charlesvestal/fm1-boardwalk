@@ -1,0 +1,30 @@
+# The boardwalk: the cabinets, walking along them, a cabinet not open yet, Bells and back; the save across a reboot
+wait 800
+expect game 0
+expect cab 0
+shot boardwalk.png
+tap OCT+
+wait 400
+expect cab 1
+shot pitch.png
+tap PLAY
+wait 100
+expect game 0
+tap OCT+
+tap OCT+
+wait 400
+expect cab 2
+turn SELECT -2
+wait 400
+expect cab 0
+tap PLAY
+wait 200
+expect game 1
+shot bells.png
+tap HOME
+wait 200
+expect game 0
+wait 2000
+reboot
+wait 800
+expect cab 0
