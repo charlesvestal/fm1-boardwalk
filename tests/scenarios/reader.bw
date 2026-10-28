@@ -4,10 +4,10 @@ wait 800
 listen
 wait 100
 where
-said BOARDWALK. BELLS, 1 OF 8
+said BOARDWALK. BELLS, RING THE CHANGES, 1 OF 8
 tap OCT+
 wait 400
-said PITCH, 2 OF 8
+said PITCH, NAME THAT NOTE, 2 OF 8
 tap PLAY
 wait 100
 said PITCH, EAR. KNOB 1, GAME EAR
@@ -25,10 +25,10 @@ where
 said SCORE 1, LIVES 3
 tap HOME
 wait 100
-said BOARDWALK. PITCH, 2 OF 8
+said BOARDWALK. PITCH, NAME THAT NOTE, 2 OF 8
 turn K1 2
 wait 300
-said SEA, 70%
+said SEA, 50%
 tap OCT-
 wait 400
 tap PLAY

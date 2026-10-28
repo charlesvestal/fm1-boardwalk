@@ -98,8 +98,15 @@ static void cabinet(const game_t *g, int32_t cx, int32_t s, int dim, uint32_t ms
     t[0] = 0;
     if (g->best)
         g->best(t);
-    if (t[0] && s > 220)
-        text_mid(cx, y0 + S(CAB_H) - 18, &FONT_XS, t, G_PAPER);
+    if (s > 220 && !dim) {               /* the one in front: PRESS PLAY, blinking (taking turns with its best) */
+        int phase = (int)(ms % 3000u / 1500u);
+        if (!t[0] || phase == 0) {
+            if (ms % 1500u < 1000u)
+                text_mid(cx, y0 + S(CAB_H) - 18, &FONT_XS, "PRESS PLAY", G_PAPER);
+        } else {
+            text_mid(cx, y0 + S(CAB_H) - 18, &FONT_XS, t, G_PAPER);
+        }
+    }
 #undef S
 }
 
@@ -107,7 +114,6 @@ static void cabinet(const game_t *g, int32_t cx, int32_t s, int dim, uint32_t ms
 static void scene_draw(const game_t *const *games, int n, int32_t pos, uint32_t ms, const char *hud)
 {
     int32_t y0, i;
-    char t[16];
     for (y0 = 0; y0 < 240; y0 += BAND_H) {
         band(y0, G_PLANK);
         sky(ms);
@@ -128,18 +134,13 @@ static void scene_draw(const game_t *const *games, int n, int32_t pos, uint32_t 
             if (d > -128 && d < 128)
                 cabinet(games[i], 120 + d * CAB_STEP / 256, 256 - (d < 0 ? -d : d) * (256 - SMALL) / 256, 0, ms);
         }
-        cv_text(6, 229, &FONT_XS, "< OCT-", G_INK);
-        if (hud) {                       /* a knob just turned: the sea, the tunes */
-            text_mid(120, 229, &FONT_XS, hud, G_INK);
-        } else {
-            t[0] = (char)('1' + (pos + 128) / 256);
-            t[1] = 0;
-            cv_text(112, 229, &FONT_XS, t, G_INK);
-            cv_text(124, 229, &FONT_XS, "/", G_INK);
-            t[0] = (char)('0' + n);
-            cv_text(132, 229, &FONT_XS, t, G_INK);
+        {
+            int at = (pos + 128) / 256;  /* the walk's ends: their way dimmed */
+            cv_text(6, 229, &FONT_XS, "< OCT-", at > 0 ? G_INK : G_PLANK2);
+            cv_text(234 - text_w(&FONT_XS, "OCT+ >"), 229, &FONT_XS, "OCT+ >", at < n - 1 ? G_INK : G_PLANK2);
+            /* a knob just turned (the sea, the tunes), or what the one in front is */
+            text_mid(120, 229, &FONT_XS, hud ? hud : games[clamp(at, 0, n - 1)]->blurb, G_INK);
         }
-        cv_text(234 - text_w(&FONT_XS, "OCT+ >"), 229, &FONT_XS, "OCT+ >", G_INK);
         band_send(y0);
     }
 }

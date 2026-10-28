@@ -120,8 +120,8 @@ static void save_defaults(void)
     memset(&sav, 0, sizeof sav);
     sav.magic = SAVE_MAGIC;
     sav.format = SAVE_FORMAT;
-    sav.surf = 60;
-    sav.tunes = 40;
+    sav.surf = 40;                       /* the sea under the tunes, not over them */
+    sav.tunes = 60;
     sav.bells.method = 4;                /* Plain Bob Minor */
     sav.bells.bell = 0;                  /* listening, the first time */
     sav.bells.pace = 22;
@@ -200,6 +200,8 @@ static void boardwalk_where(char *t)    /* the boardwalk, for a screen reader */
     text_cat(t, "BOARDWALK. ");
     text_cat(t, GAMES[sav.cab]->name);
     text_cat(t, ", ");
+    text_cat(t, GAMES[sav.cab]->blurb);
+    text_cat(t, ", ");
     sp_num(t, sav.cab + 1);
     text_cat(t, " OF ");
     sp_num(t, NGAMES);
@@ -208,7 +210,7 @@ static void boardwalk_where(char *t)    /* the boardwalk, for a screen reader */
         text_cat(t, ". ");
         text_cat(t, b);
     }
-    text_cat(t, ". OCTAVE BUTTONS WALK, PLAY STEPS UP. KNOB 1, SEA ");
+    text_cat(t, ". PLAY STEPS UP, THE OCTAVE BUTTONS WALK. KNOB 1, SEA ");
     sp_pct(t, sav.surf);
     text_cat(t, ". KNOB 2, TUNES ");
     sp_pct(t, sav.tunes);
@@ -227,6 +229,8 @@ static void walk(int d)                  /* along the boardwalk */
         char b[24];
         sp_buf[0] = 0;
         text_cat(sp_buf, GAMES[c]->name);
+        text_cat(sp_buf, ", ");
+        text_cat(sp_buf, GAMES[c]->blurb);
         text_cat(sp_buf, ", ");
         sp_num(sp_buf, c + 1);
         text_cat(sp_buf, " OF ");
@@ -269,6 +273,11 @@ static void step_up(void)                /* PLAY: into the cabinet in front */
         return;
     }
     tune_fade();
+    if (dirty) {                         /* (the music stops here anyway) */
+        dirty = 0;
+        if (plat_store_save(OBJ_SAVE, &sav, sizeof sav) != 0)
+            app_warn("NOT SAVED", "THE FLASH DID NOT TAKE IT");
+    }
     ui.game = g;
     g->enter();
     surf_for(g);
@@ -388,8 +397,8 @@ void app_tick(void)
     }
     if ((int32_t)(now - ui.tune_next) >= 0) {
         uint8_t k = c->tune[ui.tune_i];
-        if (k)
-            bw_attract_note(k, 80, c->tune_timbre);
+        if (k)                           /* each sound at about the same level as the chime */
+            bw_attract_note(k, c->tune_timbre == BW_CHIME ? 80 : c->tune_timbre == BW_SAW ? 95 : 105, c->tune_timbre);
         ui.tune_i = (ui.tune_i + 1) % c->tune_len;
         ui.tune_next += c->tune_step + (ui.tune_i == 0 ? 4u * c->tune_step : 0u);   /* a breath before it again */
     }
@@ -429,7 +438,9 @@ void app_frame(void)
     lights();
     ann_tick(now);
     /* save when nothing is ringing (a flash write holds the sound a moment) */
-    if (dirty && now - dirty_ms > 1500u && !(ui.game && ui.game->playing && ui.game->playing())) {
+    /* saved when nothing is playing (a flash write holds the sound a moment): in a game, 1.5 s after a change; on the
+     * boardwalk (the sea and the tunes play on), after 10 s left alone, or on stepping into a game */
+    if (dirty && now - dirty_ms > (ui.game ? 1500u : 10000u) && !(ui.game && ui.game->playing && ui.game->playing())) {
         dirty = 0;
         if (plat_store_save(OBJ_SAVE, &sav, sizeof sav) != 0)
             app_warn("NOT SAVED", "THE FLASH DID NOT TAKE IT");

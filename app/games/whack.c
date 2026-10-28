@@ -183,7 +183,7 @@ static void whack_draw(uint32_t now)
     for (y0 = 0; y0 < 240; y0 += BAND_H) {
         band(y0, RGB(120, 170, 90));     /* the lawn */
         cv_rect(0, 0, 240, 18, RGB(120, 84, 60));
-        cv_text(6, 3, &FONT_XS, "WHACK-A-MOLE", G_PAPER);
+        cv_text(6, 3, &FONT_XS, "MOLES", G_PAPER);
         if (wm.state == WS_STAND) {
             round_rect(14, 30, 212, 96, 8, G_PAPER);
             text_cat((s[0] = 0, s), "K1 LEVEL ");
@@ -258,15 +258,16 @@ static void whack_draw(uint32_t now)
 static void whack_frame(uint32_t now)
 {
     if (wm.state == WS_PLAY && (int32_t)(now - wm.t0) > WM_ROUND) {
-        char t[8];
+        char t[16];
         wm.state = WS_OVER;
         wm.new_best = wm.score > sav.whack.best;
         if (wm.new_best) {
             sav.whack.best = (uint16_t)wm.score;
             save_dirty();
         }
-        int_text(wm.score, t);
-        app_say(wm.new_best ? "TIME'S UP. NEW BEST, SCORE" : "TIME'S UP, SCORE", t);
+        text_cat((t[0] = 0, t), "SCORE ");
+        int_text(wm.score, t + 6);
+        app_say(wm.new_best ? "TIME'S UP. NEW BEST" : "TIME'S UP", t);
         wm_clear();
         snd_lock();                      /* a flourish */
         bw_note(72, 90, BW_CHIME);
@@ -281,9 +282,13 @@ static void whack_attract(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t m
     int i, up = (int)(ms / 500u % 5u);
     for (i = 0; i < 5; i++) {
         int32_t cx = x + w * (2 * i + 1) / 10, cy = y + h * 2 / 3;
-        cv_rect(cx - 4, cy + 2, 9, 3, RGB(70, 50, 36));
-        if (i == up)
-            fill_circle(cx, cy - 2, 4, RGB(120, 84, 60));
+        if (i == up) {                   /* a mole up, rising and ducking */
+            int32_t rise = (int32_t)(ms % 500u) < 250 ? (int32_t)(ms % 500u) / 50 : (int32_t)(500u - ms % 500u) / 50;
+            fill_circle(cx, cy - rise, 5, RGB(150, 104, 74));
+            cv_rect(cx - 2, cy - rise - 2, 1, 1, G_INK);
+            cv_rect(cx + 2, cy - rise - 2, 1, 1, G_INK);
+        }
+        cv_rect(cx - 5, cy + 2, 11, 4, RGB(90, 120, 70));
     }
 }
 
@@ -313,11 +318,11 @@ static void whack_where(char *t)
 {
     t[0] = 0;
     if (wm.state == WS_STAND) {
-        text_cat(t, "WHACK-A-MOLE. KNOB 1, LEVEL ");
+        text_cat(t, "MOLES. KNOB 1, LEVEL ");
         sp_num(t, sav.whack.level);
         text_cat(t, ". MOLES POP UP ON THE LIT KEYS. WHACK THEM BEFORE THEY DUCK. GOLD IS 3. ");
     } else {
-        text_cat(t, wm.state == WS_OVER ? "WHACK-A-MOLE. TIME'S UP. SCORE " : "WHACK-A-MOLE. SCORE ");
+        text_cat(t, wm.state == WS_OVER ? "MOLES. TIME'S UP. SCORE " : "MOLES. SCORE ");
         sp_num(t, wm.score);
         if (wm.state == WS_OVER) {
             text_cat(t, ". WHACKED ");
@@ -339,6 +344,6 @@ static int whack_playing(void) { return wm.state == WS_PLAY; }
 
 static const uint8_t WHACK_TUNE[] = {60, 0, 67, 64, 0, 69, 67, 0, 72, 0, 0, 0};
 
-static const game_t GAME_WHACK = {"WHACK", RGB(120, 84, 60), whack_enter, whack_leave, whack_frame, whack_key,
+static const game_t GAME_WHACK = {"MOLES", RGB(120, 84, 60), whack_enter, whack_leave, whack_frame, whack_key,
                                   whack_button, whack_enc, whack_tick, whack_attract, whack_best, whack_keys_lit,
-                                  WHACK_TUNE, sizeof WHACK_TUNE, 200, BW_PLUCK, whack_where, 1, whack_playing};
+                                  WHACK_TUNE, sizeof WHACK_TUNE, 200, BW_PLUCK, whack_where, 1, whack_playing, "WHACK THE MOLES"};

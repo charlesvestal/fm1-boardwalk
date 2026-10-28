@@ -102,10 +102,10 @@ static void cc_sound(uint32_t now)       /* the secret: its notes one by one, th
         return;
     snd_lock();
     if (cc.secret_left > 1)
-        bw_note(53 + cc.secret[cc.n - cc.secret_left + 1], 90, BW_PIANO);
+        bw_note(53 + cc.secret[cc.n - cc.secret_left + 1], 75, BW_PIANO);
     else
         for (i = 0; i < cc.n; i++)
-            bw_note(53 + cc.secret[i], 80, BW_PIANO);
+            bw_note(53 + cc.secret[i], 62, BW_PIANO);
     snd_unlock();
     cc.secret_left--;
     cc.secret_ms = now + (cc.secret_left == 1 ? 600u : 350u);
@@ -146,7 +146,7 @@ static void cc_judge(uint32_t now)
     cc.shown_ms = now;
     snd_lock();                          /* your guess, together */
     for (j = 0; j < cc.n; j++)
-        bw_note(53 + cc.guess[t][j], 75, BW_PIANO);
+        bw_note(53 + cc.guess[t][j], 60, BW_PIANO);
     snd_unlock();
     if (exact == cc.n) {
         cc.gain = (CC_TRIES + 1 - cc.tries) * cc.level;
@@ -195,7 +195,7 @@ static void chord_key(int k, int down, uint32_t ms)
     if (!down)
         return;
     snd_lock();
-    bw_note(53 + k, 90, BW_PIANO);
+    bw_note(53 + k, 75, BW_PIANO);
     snd_unlock();
     if (cc.state != CS_GUESS)
         return;
@@ -467,4 +467,4 @@ static const uint8_t CHORD_TUNE[] = {60, 64, 67, 0, 62, 65, 69, 0, 59, 62, 67, 0
 
 static const game_t GAME_CHORD = {"CHORD CODE", RGB(90, 70, 140), chord_enter, chord_leave, chord_frame, chord_key,
                                   chord_button, chord_enc, 0, chord_attract, chord_best, chord_keys_lit,
-                                  CHORD_TUNE, sizeof CHORD_TUNE, 220, BW_PIANO, chord_where, 0, chord_playing};
+                                  CHORD_TUNE, sizeof CHORD_TUNE, 220, BW_PIANO, chord_where, 0, chord_playing, "CRACK THE CHORD"};

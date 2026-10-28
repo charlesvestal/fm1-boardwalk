@@ -26,4 +26,5 @@ typedef struct {
     uint8_t key_in_tick;                 /* 1: key is called from the tick, the moment a key goes down or up (a game
                                           * whose sound must answer at once: no screen redraw in between) */
     int (*playing)(void);                /* 1 while a round is on: PLAY red, no saving (a flash write holds the sound) */
+    const char *blurb;                   /* what it is, in three words: under the boardwalk, and said */
 } game_t;

@@ -366,6 +366,7 @@ static void gallery_best(char *t)
     if (sav.gallery.best) {
         text_cat(t, "BEST ");
         int_text(sav.gallery.best, t + 5);
+        text_cat(t, " OF 20");
     }
 }
 
@@ -386,13 +387,13 @@ static void gallery_where(char *t)
 {
     t[0] = 0;
     if (gl.state == GS_STAND) {
-        text_cat(t, "SHOOTING GALLERY. KNOB 1, LEVEL ");
+        text_cat(t, "DUCKS. KNOB 1, LEVEL ");
         sp_num(t, sav.gallery.level);
         text_cat(t, ", ");
         text_cat(t, GL_LEVEL_NAME[clamp(sav.gallery.level, 1, GL_LEVELS) - 1]);
         text_cat(t, ". PLAY THE NOTE A DUCK QUACKS TO SHOOT IT. TWENTY DUCKS A ROUND. ");
     } else {
-        text_cat(t, gl.state == GS_OVER ? "SHOOTING GALLERY. ROUND OVER. " : "SHOOTING GALLERY. ");
+        text_cat(t, gl.state == GS_OVER ? "DUCKS. ROUND OVER. " : "DUCKS. ");
         sp_num(t, gl.score);
         text_cat(t, " OF ");
         sp_num(t, gl.done);
@@ -415,6 +416,6 @@ static int gallery_playing(void) { return gl.state == GS_PLAY; }
 
 static const uint8_t GALLERY_TUNE[] = {67, 0, 72, 0, 76, 0, 79, 0, 0, 0, 76, 79, 0, 0, 0, 0};
 
-static const game_t GAME_GALLERY = {"GALLERY", RGB(60, 40, 70), gallery_enter, gallery_leave, gallery_frame,
+static const game_t GAME_GALLERY = {"DUCKS", RGB(60, 40, 70), gallery_enter, gallery_leave, gallery_frame,
                                     gallery_key, gallery_button, gallery_enc, 0, gallery_attract, gallery_best,
-                                    gallery_keys_lit, GALLERY_TUNE, sizeof GALLERY_TUNE, 180, BW_CHIME, gallery_where, 0, gallery_playing};
+                                    gallery_keys_lit, GALLERY_TUNE, sizeof GALLERY_TUNE, 180, BW_CHIME, gallery_where, 0, gallery_playing, "SHOOT THE DUCKS"};

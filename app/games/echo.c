@@ -392,6 +392,7 @@ static void echo_best(char *t)
     if (sav.echo.best) {
         text_cat(t, "BEST ");
         int_text(sav.echo.best, t + 5);
+        text_cat(t, " ROUNDS");
     }
 }
 
@@ -462,4 +463,4 @@ static const uint8_t ECHO_TUNE[] = {76, 0, 0, 76, 0, 0, 76, 0, 0, 0, 79, 0, 79, 
 
 static const game_t GAME_ECHO = {"ECHO", RGB(232, 88, 128), echo_enter, echo_leave, echo_frame, echo_key,
                                  echo_button, echo_enc, echo_tick, echo_attract, echo_best, echo_keys_lit,
-                                 ECHO_TUNE, sizeof ECHO_TUNE, 150, BW_PLUCK, echo_where, 1, echo_playing};
+                                 ECHO_TUNE, sizeof ECHO_TUNE, 150, BW_PLUCK, echo_where, 1, echo_playing, "ANSWER THE RHYTHM"};

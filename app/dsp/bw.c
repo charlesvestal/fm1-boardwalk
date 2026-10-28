@@ -139,7 +139,7 @@ static const timbre_t TIMBRE[BW_NTIMBRES] = {
     {3.5f, 1.3f, 0.99992f, 0.99997f, 0.22f, 0, 0},     /* chime */
     {1.0f, 1.1f, 0.9999f, 0.99993f, 0.40f, -1, 0},     /* bass */
     {1.41f, 3.0f, 0.998f, 0.9993f, 0.40f, -2, 0},      /* clunk */
-    {1.0f, 0.0f, 1.0f, 0.99995f, 0.20f, 0, 1},      /* saw: ~0.5 s */
+    {1.0f, 0.0f, 1.0f, 0.99995f, 0.40f, 0, 1},      /* saw: ~0.5 s */
 };
 typedef struct {
     float ph, mph, inc, minc, env, idx, idx_decay, decay, lp;
@@ -517,7 +517,7 @@ void bw_render(int32_t *lr, uint32_t n, uint32_t gain_q12)
             t->ph -= (float)(int)t->ph;
             p = t->ph;
             t->lp += 0.35f * (2.0f * p - 1.0f - blep(p, t->inc) - t->lp);
-            s = t->lp * t->level * 0.6f;
+            s = t->lp * t->level * 1.0f;
             l += s;
             r += s;
             wet += 0.1f * s;

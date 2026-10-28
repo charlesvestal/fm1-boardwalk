@@ -11,7 +11,9 @@ boardwalk menu runs, Pitch and Tiles are cabinets with attract screens but no ga
   (`PYTHON=/opt/homebrew/bin/python3.14`, podman running), `sh tests/run_tests.sh`. Identity **FM-1_12**
   (dev FM-1_1200), USB "Boardwalk FM-1". No Bluetooth, no USB audio out.
 - Eight cabinets: **Bells** (tower, handbells, conducting), **Pitch** (EAR and TUNE), **Tiles** (five songs),
-  **Echo** (rhythm call and response), **Chord Code**, **Simon**, **Whack-a-mole**, **Shooting gallery**.
+  **Echo** (rhythm call and response), **Chord Code**, **Parrot** (inspired by Simon), **Moles** (whack-a-mole),
+  **Ducks** (a shooting gallery). Each cabinet has a three-word blurb (game_t.blurb) under the boardwalk, and the one
+  in front blinks PRESS PLAY. A design and copy pass (2026-10-28, one reviewer a game) is in the git log.
   Keys are read by the 1 kHz tick (exact times; Bells, Tiles and Echo answer in the tick itself); the black keys
   show what comes next (Bells: your place; Tiles: the next lane). The boardwalk plays each
   cabinet's attract tune quietly over the sea, fading as the row moves; K1 the sea, K2 the tunes. Gulls call.
@@ -19,7 +21,7 @@ boardwalk menu runs, Pitch and Tiles are cabinets with attract screens but no ga
   (`app/words.tsv`, `app/words.allow`, `app/web/words/`). The words link points at
   charlesvestal.github.io/fm1-boardwalk/words/, which does not exist yet (the repo is private).
 - Browser emulator builds (`./build.sh --web`), tested in Node.
-- Image 134 KB; RAM 24.9 of 96 KB; pool 206 of 336 KB (the plate ~139 KB, the canvas 69 KB).
+- Image ~140 KB; RAM ~25 of 96 KB; pool 206 of 336 KB (the plate ~139 KB, the canvas 69 KB).
 - **Not yet on the hardware**: the render's CPU, the frame rate of full-screen redraws, how the bells, tones and
   gulls sound through the speaker, whether the bass is audible on it, and whether Tiles' timing feels right
   (input is polled between frames; key times in ms from plat_ms).
@@ -130,21 +132,27 @@ Bells as built: K1 method (ten: Plain Hunt, Plain Bob and Grandsire Doubles; Pla
   then. Round at the length: a touch counted (`sav.touches`); round early, or not round by target + 2 leads: said,
   with the hint ("bob, bob, bob would do it").
 
-## Chord Code, Simon, Whack-a-mole, Shooting gallery (built 2026-10-28)
+## Chord Code, Parrot, Moles, Ducks (built 2026-10-28)
 
 - **Chord Code**: a hidden chord (L1 major / minor root position C4-B4, L2 any triad any inversion, L3 sevenths);
   pick its notes, judged when you have picked as many: exact teal, right note other octave orange. 6 guesses, 5
   chords; score 7 - guesses each. PLAY hears it again.
-- **Simon**: E A C# E (the original's A major) on the four lanes; one more each round, a little faster; one wrong
-  or 4 s idle ends it. K1 speed.
-- **Whack-a-mole**: moles on the pentatonic keys (C D E G A) on a 112 bpm groove's eighths; a whack plays its key;
-  gold = 3; a stray whack -1. 45 s. K1 level (how often, how long up).
-- **Shooting gallery**: ducks on three rows quack their note as they come on; press its key to shoot. L1-2 names
-  shown and keys lit (mid), L3-4 by ear. 20 ducks.
+- **Parrot** (inspired by Simon; the name is not ours to use): E A C# E on the four lanes, pads labelled with their
+  keys; one more each round, a little faster; every five rounds the tones change key; a wrong pad or 4 s idle ends
+  it, said why. K1 speed.
+- **Moles** (whack-a-mole): moles on the 11 pentatonic white keys, each a step or two from the last, over a bass
+  line (a good run is a tune), on a 112 bpm groove's eighths; gold = 3; a stray whack -1; faster as the 45 s run out.
+  K1 level.
+- **Ducks** (a shooting gallery): ducks on three rows quack their note as they come into view (by ear, again
+  midway); press its key to shoot; a shot at nothing jams the gun 600 ms. L1-2 names shown and keys lit (mid), L3-4
+  by ear. 20 ducks.
 
 ## More games still
 
 From the list: **a puzzle** (Lumines-like, cleared lines play chords). New: none queued.
+
+To set on the FM-1: Echo's EC_LAG and Tiles' TL_DRAW_AHEAD (key-to-sound and screen lag), the mix (each game's
+loudest ~-26 dBFS in the simulator), whether a save on the boardwalk is heard.
 
 Next: on the FM-1 (CPU, frame rate, the sound, Tiles' feel); then MIDI songs for Tiles (the user's own, as the
 notes above plan), and Bells' handbells and conducting.

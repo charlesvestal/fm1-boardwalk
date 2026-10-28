@@ -63,7 +63,7 @@ static void simon_go(void)
 
 static void simon_over(int why)
 {
-    char t[8];
+    char t[16];
     sm.why = why;
     sm.state = SS_OVER;
     sm.new_best = sm.len - 1 > sav.simon.best;
@@ -74,9 +74,10 @@ static void simon_over(int why)
     snd_lock();
     bw_note(41, 120, BW_CLUNK);
     snd_unlock();
-    int_text(sm.len - 1, t);
-    app_say(why ? (sm.new_best ? "TOO SLOW. NEW BEST, SCORE" : "TOO SLOW. SCORE") :
-                  (sm.new_best ? "WRONG PAD. NEW BEST, SCORE" : "WRONG PAD. SCORE"), t);
+    text_cat((t[0] = 0, t), "SCORE ");
+    int_text(sm.len - 1, t + 6);
+    app_say(why ? (sm.new_best ? "TOO SLOW. NEW BEST" : "TOO SLOW") : (sm.new_best ? "WRONG PAD. NEW BEST" : "WRONG PAD"),
+            t);
     sm.lit = sm.seq[sm.pos];             /* the right pad, lit a moment */
     sm.lit_until = plat_ms() + 900u;
 }
@@ -161,7 +162,7 @@ static void simon_draw(uint32_t now)
     char s[32];
     for (y0 = 0; y0 < 240; y0 += BAND_H) {
         band(y0, G_PAPER);
-        cv_rect(0, 0, 240, 18, G_INK);
+        cv_rect(0, 0, 240, 18, RGB(40, 160, 150));
         cv_text(6, 3, &FONT_XS, "PARROT", G_PAPER);
         for (i = 0; i < 4; i++) {        /* four pads, over the lanes of keys they belong to */
             int lit = sm.lit == i && now < sm.lit_until;
@@ -240,6 +241,7 @@ static void simon_best(char *t)
     if (sav.simon.best) {
         text_cat(t, "BEST ");
         int_text(sav.simon.best, t + 5);
+        text_cat(t, " ROUNDS");
     }
 }
 
@@ -287,4 +289,4 @@ static const uint8_t SIMON_TUNE[] = {52, 57, 61, 64, 0, 64, 61, 57, 0, 0};
 
 static const game_t GAME_SIMON = {"PARROT", RGB(40, 160, 150), simon_enter, simon_leave, simon_frame, simon_key,
                                   simon_button, simon_enc, 0, simon_attract, simon_best, simon_keys_lit,
-                                  SIMON_TUNE, sizeof SIMON_TUNE, 260, BW_PLUCK, simon_where, 0, simon_playing};
+                                  SIMON_TUNE, sizeof SIMON_TUNE, 260, BW_PLUCK, simon_where, 0, simon_playing, "COPY THE TUNE"};

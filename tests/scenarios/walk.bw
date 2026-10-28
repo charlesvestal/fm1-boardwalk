@@ -32,7 +32,7 @@ wait 400
 expect cab 0
 turn K1 -4
 wait 50
-expect surf 40
+expect surf 20
 shot sea.png
 tap PLAY
 wait 200
@@ -44,4 +44,4 @@ wait 2000
 reboot
 wait 800
 expect cab 0
-expect surf 40
+expect surf 20

@@ -625,12 +625,12 @@ static void bells_draw(uint32_t now)
     for (y0 = 0; y0 < 240; y0 += BAND_H) {
         band(y0, G_PAPER);
         /* the header: the method, and the stroke */
-        cv_rect(0, 0, 240, 18, G_SKY0);
+        cv_rect(0, 0, 240, 18, RGB(232, 80, 91));
         method_name(s);
-        cv_text(6, 3, &FONT_XS, s, G_INK);
+        cv_text(6, 3, &FONT_XS, s, G_PAPER);
         if (bl.ringing)
             cv_text(234 - text_w(&FONT_XS, row & 1 ? "BACKSTROKE" : "HANDSTROKE"), 3, &FONT_XS,
-                    row & 1 ? "BACKSTROKE" : "HANDSTROKE", G_INK);
+                    row & 1 ? "BACKSTROKE" : "HANDSTROKE", G_PAPER);
         /* the frame and its bells */
         cv_rect(0, 18, 240, 70, G_PAPER2);
         cv_rect(10, 60, 220, 3, G_WHEEL);
@@ -999,4 +999,4 @@ static const uint8_t BELLS_TUNE[] = {83, 81, 79, 77, 76, 74, 0, 83, 81, 79, 77, 
 
 static const game_t GAME_BELLS = {"BELLS", RGB(232, 80, 91), bells_enter, bells_leave, bells_frame, bells_key,
                                   bells_button, bells_enc, bells_tick, bells_attract, bells_best, bells_keys_lit,
-                                  BELLS_TUNE, sizeof BELLS_TUNE, 260, BW_CHIME, bells_where, 1, bells_playing};
+                                  BELLS_TUNE, sizeof BELLS_TUNE, 260, BW_CHIME, bells_where, 1, bells_playing, "RING THE CHANGES"};
