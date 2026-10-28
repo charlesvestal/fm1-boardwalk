@@ -98,10 +98,7 @@ static void bell_tune(bell_t *b, int note)
     b->note = note;
 }
 
-static void note_start(int note, int vel, int timbre, int attract);
-
-/* bright: the upper partials stronger, and the clapper's tock on top (a short pluck two octaves up): a bell that
- * stands out among the others, by its tone as well as its level */
+/* bright: the upper partials a little stronger (your own bell; it stands out mostly by its level) */
 static void bell_strike(int i, int note, int vel, int bright_strike)
 {
     bell_t *b = &bell[i];
@@ -114,12 +111,10 @@ static void bell_strike(int i, int note, int vel, int bright_strike)
     }
     g = v * v;                           /* a harder strike is louder and brighter */
     for (p = 0; p < NPART; p++) {
-        float bright = p >= 4 ? (0.5f + 0.5f * v) * (bright_strike ? 1.8f : 1.0f) : 1.0f;
+        float bright = p >= 4 ? (0.5f + 0.5f * v) * (bright_strike ? 1.15f : 1.0f) : 1.0f;
         b->im[p] += b->amp[p] * g * bright;
     }
     b->level = g;
-    if (bright_strike)
-        note_start(note + 24, vel / 2, BW_PLUCK, 0);
 }
 
 /* ------------------------------------------------------------------- notes --- */

@@ -27,7 +27,7 @@
 #define ROWS_MAX (ROUNDS_BEFORE + 232 + ROUNDS_AFTER)
 #define PACE_MIN 16                      /* the gap between blows, x 10 ms */
 #define PACE_MAX 32
-#define VEL_TOWER 90                     /* the tower's bells; yours louder (~6 dB) and brighter: you hear it */
+#define VEL_TOWER 90                     /* the tower's bells; yours louder (~6 dB): you hear it among them */
 #define VEL_MINE 127
 #define CALL_AHEAD 3                     /* rows worked out ahead of the ringing, conducting */
 enum { BM_TOWER, BM_HAND, BM_CONDUCT, BM_N };
