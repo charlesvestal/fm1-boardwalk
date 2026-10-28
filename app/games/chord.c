@@ -1,11 +1,13 @@
 /* SPDX-License-Identifier: MPL-2.0
  * Copyright (C) 2026 Charles Vestal */
-/* Chord Code: Mastermind with chords. A hidden chord plays (PLAY hears it again); pick its notes on the keys. When
- * you have picked as many as it has, the guess is judged: each note exact (teal), the right note in the wrong octave
- * (orange), or not in it (grey). Six guesses a chord, five chords a game; a chord found sooner scores more.
+/* Chord Code: Mastermind with chords. A hidden chord plays (PLAY hears it again); pick its notes on the keys (a key
+ * again takes it back). When you have picked as many as it has, the guess is judged: each note exact (teal), the
+ * right note in the wrong octave (orange), or not in it (grey). Six guesses a chord, five chords a game; a chord
+ * found sooner scores more, and more on the higher levels. Found or not, the chord is named.
  *
- * Levels: 1 major and minor triads, root position, from C4 to B4; 2 any triad (major, minor, diminished, augmented)
- * in any inversion; 3 four-note chords (major, minor and dominant sevenths).
+ * Its notes are always somewhere from C4 to G5 (the keys below are dimmed). Levels: 1 major and minor triads, root
+ * position; 2 any triad (major, minor, diminished, augmented) in any inversion; 3 four-note chords (major, minor and
+ * dominant sevenths).
  *
  * Standing: K1 the level; PLAY starts. Part of the unity build. */
 #include "game.h"
@@ -14,44 +16,80 @@
 #define CC_TRIES 6
 #define CC_CHORDS 5
 #define CC_MAX 4                         /* notes in a chord */
+#define CC_LOW 7                         /* the lowest key a chord can use: C4 */
 
 enum { CS_STAND, CS_GUESS, CS_SOLVED, CS_OVER };
 enum { CR_NONE, CR_EXACT, CR_OCTAVE };
+enum { CK_MAJ, CK_MIN, CK_DIM, CK_AUG, CK_MAJ7, CK_MIN7, CK_DOM7 };
 static struct {
-    int state, level, chord, tries, score, n, new_best;
-    uint8_t secret[CC_MAX];              /* keys */
+    int state, level, chord, tries, score, n, new_best, kind, root, found, gain;
+    uint8_t secret[CC_MAX];              /* keys, low to high */
     uint8_t guess[CC_TRIES][CC_MAX], mark[CC_TRIES][CC_MAX];
     uint32_t picked;                     /* keys picked for the guess being made */
     uint32_t judge_ms, shown_ms, next_ms, secret_ms;
     int secret_left;                     /* the secret's notes still to play, one after another, then together */
 } cc;
 
-static const char *const CC_LEVEL_NAME[CC_LEVELS] = {"MAJOR AND MINOR", "ANY TRIAD", "SEVENTHS"};
+static const char *const CC_LEVEL_NAME[CC_LEVELS] = {"MAJOR AND MINOR", "TRIADS, INVERTED", "SEVENTH CHORDS"};
+static const char *const CC_KIND[7] = {"MAJOR", "MINOR", "DIMINISHED", "AUGMENTED", "MAJOR SEVENTH", "MINOR SEVENTH",
+                                       "SEVENTH"};
+
+static void chord_name(char *t)          /* "F# MINOR SEVENTH" */
+{
+    static const char *const N[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
+    t[0] = 0;
+    text_cat(t, N[cc.root]);
+    text_cat(t, " ");
+    text_cat(t, CC_KIND[cc.kind]);
+}
+
+static int picks(void)
+{
+    uint32_t m = cc.picked;
+    int c = 0;
+    while (m) {
+        c += (int)(m & 1u);
+        m >>= 1;
+    }
+    return c;
+}
 
 static void cc_new_chord(uint32_t now)
 {
     static const int8_t TRIADS[4][3] = {{0, 4, 7}, {0, 3, 7}, {0, 3, 6}, {0, 4, 8}};
     static const int8_t SEVENTHS[3][4] = {{0, 4, 7, 11}, {0, 3, 7, 10}, {0, 4, 7, 10}};
-    int root = 7 + (int)rnd(12), i, kind;   /* C4..B4 as keys */
+    int root = CC_LOW + (int)rnd(12), i, j, inv;   /* C4..B4 as keys */
     int8_t iv[CC_MAX];
     if (cc.level == 3) {
-        kind = (int)rnd(3);
+        cc.kind = CK_MAJ7 + (int)rnd(3);
         cc.n = 4;
         for (i = 0; i < 4; i++)
-            iv[i] = SEVENTHS[kind][i];
+            iv[i] = SEVENTHS[cc.kind - CK_MAJ7][i];
     } else {
-        kind = cc.level == 1 ? (int)rnd(2) : (int)rnd(4);
+        cc.kind = cc.level == 1 ? (int)rnd(2) : (int)rnd(4);
         cc.n = 3;
         for (i = 0; i < 3; i++)
-            iv[i] = TRIADS[kind][i];
-        if (cc.level == 2)               /* an inversion: the lowest notes up an octave */
-            for (i = 0; i < (int)rnd(3); i++)
+            iv[i] = TRIADS[cc.kind][i];
+        if (cc.level == 2)               /* an inversion: the lowest notes up an octave (each as likely) */
+            for (inv = (int)rnd(3), i = 0; i < inv; i++)
                 iv[i] += 12;
     }
-    for (i = 0; i < cc.n; i++)
-        cc.secret[i] = (uint8_t)clamp(root + iv[i], 0, NKEYS - 1);
+    cc.root = (53 + root) % 12;
+    for (i = 0; i < cc.n; i++) {         /* above G5, an octave down: still the chord, no note twice */
+        int k = root + iv[i];
+        while (k > NKEYS - 1)
+            k -= 12;
+        cc.secret[i] = (uint8_t)k;
+    }
+    for (i = 1; i < cc.n; i++)           /* low to high */
+        for (j = i; j > 0 && cc.secret[j - 1] > cc.secret[j]; j--) {
+            uint8_t t = cc.secret[j];
+            cc.secret[j] = cc.secret[j - 1];
+            cc.secret[j - 1] = t;
+        }
     cc.tries = 0;
     cc.picked = 0;
+    cc.judge_ms = 0;
     cc.state = CS_GUESS;
     cc.secret_ms = now + 400u;
     cc.secret_left = cc.n + 1;
@@ -67,7 +105,7 @@ static void cc_sound(uint32_t now)       /* the secret: its notes one by one, th
         bw_note(53 + cc.secret[cc.n - cc.secret_left + 1], 90, BW_PIANO);
     else
         for (i = 0; i < cc.n; i++)
-            bw_note(53 + cc.secret[i], 90, BW_PIANO);
+            bw_note(53 + cc.secret[i], 80, BW_PIANO);
     snd_unlock();
     cc.secret_left--;
     cc.secret_ms = now + (cc.secret_left == 1 ? 600u : 350u);
@@ -75,18 +113,21 @@ static void cc_sound(uint32_t now)       /* the secret: its notes one by one, th
 
 static void chord_go(void)
 {
+    char t[24] = "FIND ";
     rnd_state ^= plat_ms() * 2654435761u;
     cc.level = clamp(sav.chord.level, 1, CC_LEVELS);
     cc.chord = 0;
-    cc.score = 0;
+    cc.score = cc.found = 0;
     cc_new_chord(plat_ms());
-    app_say("LISTEN", "FIND ITS NOTES");
+    int_text(cc.n, t + 5);
+    text_cat(t, " NOTES");
+    app_say("LISTEN", t);
 }
 
 static void cc_judge(uint32_t now)
 {
-    int i, j, exact = 0, oct = 0, t = cc.tries;
-    char s[48];
+    int i, j, exact = 0, t = cc.tries;
+    char n[6];
     for (i = 0, j = 0; i < NKEYS && j < cc.n; i++)
         if (cc.picked >> i & 1u)
             cc.guess[t][j++] = (uint8_t)i;
@@ -99,58 +140,68 @@ static void cc_judge(uint32_t now)
                 cc.mark[t][j] = CR_OCTAVE;
         }
         exact += cc.mark[t][j] == CR_EXACT;
-        oct += cc.mark[t][j] == CR_OCTAVE;
     }
     cc.tries++;
     cc.picked = 0;
     cc.shown_ms = now;
     snd_lock();                          /* your guess, together */
     for (j = 0; j < cc.n; j++)
-        bw_note(53 + cc.guess[t][j], 80, BW_PIANO);
+        bw_note(53 + cc.guess[t][j], 75, BW_PIANO);
     snd_unlock();
     if (exact == cc.n) {
-        cc.score += CC_TRIES + 1 - cc.tries;
+        cc.gain = (CC_TRIES + 1 - cc.tries) * cc.level;
+        cc.score += cc.gain;
+        cc.found++;
         cc.state = CS_SOLVED;
-        cc.next_ms = now + 1800u;
-        app_say("SOLVED", "");
+        cc.next_ms = now + 2800u;
+        cc.secret_ms = now + 500u;       /* its notes again, as a flourish */
+        cc.secret_left = cc.n + 1;
+        chord_name(sp_buf + 0);          /* (sp_buf free here: said at once) */
+        {
+            char m[40] = "FOUND IT, ";
+            text_cat(m, sp_buf);
+            app_say(m, "");
+        }
         return;
     }
-    s[0] = 0;
-    int_text(exact, s);
-    text_cat(s, " RIGHT, ");
-    int_text(oct, s + text_len(s));
-    text_cat(s, " IN ANOTHER OCTAVE");
+    sp_buf[0] = 0;                       /* each note: right, another octave, or not in it */
+    for (j = 0; j < cc.n; j++) {
+        note_text(53 + cc.guess[t][j], n);
+        text_cat(sp_buf, n);
+        text_cat(sp_buf, cc.mark[t][j] == CR_EXACT ? " RIGHT" : cc.mark[t][j] == CR_OCTAVE ? " OTHER OCTAVE" :
+                                                                                         " NOT IN IT");
+        text_cat(sp_buf, j + 1 < cc.n ? ". " : ".");
+    }
+    if (ann_on())
+        ann_say(sp_buf, 0, ANN_NOW);
     if (cc.tries >= CC_TRIES) {
-        cc.state = CS_SOLVED;            /* not found: shown, and on to the next */
-        cc.next_ms = now + 2500u;
-        app_say(s, "OUT OF GUESSES");
+        char m[48] = "OUT OF GUESSES. IT WAS ";
+        cc.gain = 0;
+        cc.state = CS_SOLVED;            /* not found: shown, named, and on to the next */
+        cc.next_ms = now + 3200u;
+        cc.secret_ms = now + 900u;
+        cc.secret_left = cc.n + 1;
+        chord_name(m + text_len(m));
+        app_say(m, "");
     } else {
         cc.secret_ms = now + 900u;       /* the secret again, to compare */
         cc.secret_left = 1;
-        app_say(s, "");
     }
 }
 
 static void chord_key(int k, int down, uint32_t ms)
 {
+    int c;
     if (!down)
         return;
     snd_lock();
     bw_note(53 + k, 90, BW_PIANO);
     snd_unlock();
-    if (cc.state != CS_GUESS || cc.judge_ms)
+    if (cc.state != CS_GUESS)
         return;
-    cc.picked ^= 1u << k;                /* a pick, or taken back */
-    {
-        uint32_t m = cc.picked;
-        int c = 0;
-        while (m) {
-            c += (int)(m & 1u);
-            m >>= 1;
-        }
-        if (c == cc.n)
-            cc.judge_ms = ms + 350u;     /* a moment to see it, then judged */
-    }
+    cc.picked ^= 1u << k;                /* a pick, or taken back (in the pause before judging, too) */
+    c = picks();
+    cc.judge_ms = c == cc.n ? ms + 600u : 0u;   /* a moment to see it (or take one back), then judged */
 }
 
 static void chord_button(int b, int down)
@@ -186,11 +237,13 @@ static uint16_t chord_key_col(int k)
 {
     int i;
     if (cc.picked >> k & 1u)
-        return G_INK;
+        return RGB(150, 120, 200);       /* a pick (lilac: on a black key too) */
     if (cc.state == CS_SOLVED || cc.state == CS_OVER)
         for (i = 0; i < cc.n; i++)
             if (cc.secret[i] == k)
                 return G_TEAL;
+    if (cc.state == CS_GUESS && k < CC_LOW)
+        return mix(G_MUTE, G_PAPER, 128);   /* never in a chord */
     return 0;
 }
 
@@ -198,36 +251,67 @@ static void chord_draw(uint32_t now)
 {
     static const uint16_t MARK_COL[3] = {RGB(150, 140, 130), RGB(62, 154, 176), RGB(242, 163, 58)};
     int32_t y0, i, j;
-    char s[24];
+    char s[40];
     (void)now;
     for (y0 = 0; y0 < 240; y0 += BAND_H) {
         band(y0, G_PAPER);
         cv_rect(0, 0, 240, 18, RGB(90, 70, 140));
         cv_text(6, 3, &FONT_XS, "CHORD CODE", G_PAPER);
         if (cc.state == CS_STAND) {
-            text_cat((s[0] = 0, s), "K1 LEVEL ");
-            int_text(sav.chord.level, s + 9);
-            cv_text(14, 30, &FONT_B, s, G_INK);
-            cv_text(14, 50, &FONT_XS, CC_LEVEL_NAME[clamp(sav.chord.level, 1, CC_LEVELS) - 1], G_PLANK2);
-            cv_text(14, 76, &FONT_XS, "A HIDDEN CHORD PLAYS. PICK ITS NOTES", G_PLANK2);
-            cv_text(14, 90, &FONT_XS, "ON THE KEYS: TEAL IS RIGHT, ORANGE", G_PLANK2);
-            cv_text(14, 104, &FONT_XS, "THE RIGHT NOTE IN ANOTHER OCTAVE.", G_PLANK2);
-            cv_text(14, 118, &FONT_XS, "SIX GUESSES A CHORD. PLAY: HEAR IT.", G_PLANK2);
+            cv_text(14, 30, &FONT_XS, "K1 LEVEL", G_PLANK2);
+            int_text(sav.chord.level, s);
+            cv_text(94, 28, &FONT_B, s, G_INK);
+            cv_text(94, 46, &FONT_XS, CC_LEVEL_NAME[clamp(sav.chord.level, 1, CC_LEVELS) - 1], G_PLANK2);
+            cv_text(14, 76, &FONT_XS, "HEAR A CHORD, FIND ITS NOTES.", G_PLANK2);
+            for (i = 0; i < 3; i++) {    /* the marks, as a key */
+                static const char *const W[3] = {"RIGHT", "OTHER OCTAVE", "NOT IN IT"};
+                static const int8_t X[3] = {14, 70, 160};
+                fill_circle(X[i] + 4, 98, 4, MARK_COL[i == 0 ? 1 : i == 1 ? 2 : 0]);
+                cv_text(X[i] + 12, 91, &FONT_XS, W[i], G_PLANK2);
+            }
+            cv_text(14, 112, &FONT_XS, "SIX GUESSES A CHORD, FIVE CHORDS.", G_PLANK2);
             if (sav.chord.best) {
                 text_cat((s[0] = 0, s), "BEST ");
                 int_text(sav.chord.best, s + 5);
-                cv_text(14, 146, &FONT_B, s, G_INK);
+                cv_text(14, 140, &FONT_B, s, G_INK);
             }
         } else {
-            text_cat((s[0] = 0, s), "CHORD ");
-            int_text(cc.chord + 1, s + 6);
-            text_cat(s, " OF 5");
+            if (cc.state == CS_OVER)
+                text_cat((s[0] = 0, s), "5 CHORDS");
+            else {
+                text_cat((s[0] = 0, s), "CHORD ");
+                int_text(cc.chord + 1, s + 6);
+                text_cat(s, " OF 5");
+            }
             cv_text(234 - text_w(&FONT_XS, s), 3, &FONT_XS, s, G_PAPER);
-            int_text(cc.score, s);
+            text_cat((s[0] = 0, s), "SCORE ");
+            int_text(cc.score, s + 6);
             cv_text(14, 24, &FONT_B, s, G_INK);
-            for (j = 0; j < CC_TRIES; j++) { /* the guesses so far, each note marked */
+            if (cc.state == CS_SOLVED) { /* found it, or not */
+                s[0] = 0;
+                if (cc.gain) {
+                    text_cat(s, "FOUND IT! +");
+                    int_text(cc.gain, s + text_len(s));
+                } else {
+                    text_cat(s, "IT WAS");
+                }
+                cv_text(226 - text_w(&FONT_B, s), 24, &FONT_B, s, cc.gain ? G_TEAL : G_RED);
+            }
+            for (j = 0; j < CC_TRIES; j++) { /* the guesses so far, each note marked; the one being made */
                 int32_t y = 46 + j * 23;
-                cv_rect(40, y, 160, 19, j < cc.tries ? G_PAPER2 : mix(G_PAPER2, G_PAPER, 160));
+                int now_row = j == cc.tries && cc.state == CS_GUESS;
+                cv_rect(40, y, 160, 19, j < cc.tries || now_row ? G_PAPER2 : mix(G_PAPER2, G_PAPER, 160));
+                if (now_row) {
+                    int k, c = 0;
+                    for (k = 0; k < NKEYS && c < cc.n; k++)
+                        if (cc.picked >> k & 1u) {
+                            note_text(53 + k, s);
+                            text_mid(40 + c * 40 + 24, y + 2, &FONT_XS, s, G_INK);
+                            c++;
+                        }
+                    for (; c < cc.n; c++)
+                        text_mid(40 + c * 40 + 24, y + 2, &FONT_XS, "-", G_PLANK2);
+                }
                 for (i = 0; i < cc.n && j < cc.tries; i++) {
                     int32_t x = 40 + i * 40 + 20;
                     fill_circle(x - 14, y + 9, 4, MARK_COL[cc.mark[j][i]]);
@@ -235,23 +319,26 @@ static void chord_draw(uint32_t now)
                     text_mid(x + 4, y + 2, &FONT_XS, s, G_INK);
                 }
             }
-            if (cc.state == CS_SOLVED || cc.state == CS_OVER) {   /* what it was */
-                s[0] = 0;
-                for (i = 0; i < cc.n; i++) {
-                    char n[6];
-                    note_text(53 + cc.secret[i], n);
-                    text_cat(s, n);
-                    text_cat(s, " ");
-                }
+            if (cc.state == CS_SOLVED) { /* what it was: named (its keys are teal below) */
+                chord_name(s);
                 text_mid(120, 184, &FONT_B, s, G_TEAL);
+            } else if (cc.state == CS_OVER) {
+                text_cat((s[0] = 0, s), "FOUND ");
+                int_text(cc.found, s + 6);
+                text_cat(s, " OF 5");
+                text_mid(120, 184, &FONT_B, s, G_INK);
+                text_mid(120, 24, &FONT_B, cc.new_best ? "NEW BEST!" : "", G_RED);
             }
-            if (cc.state == CS_OVER)
-                text_mid(120, 24, &FONT_B, cc.new_best ? "NEW BEST!" : "GAME OVER", G_RED);
         }
         keyboard(202, 18, chord_key_col);
         cv_rect(0, 220, 240, 20, G_LILAC);
-        cv_text(232 - text_w(&FONT_XS, cc.state == CS_GUESS ? "PLAY: HEAR IT" : "PLAY: START"), 224, &FONT_XS,
-                cc.state == CS_GUESS ? "PLAY: HEAR IT" : "PLAY: START", G_INK);
+        if (cc.state == CS_GUESS)
+            cv_text(8, 224, &FONT_XS, "KEY AGAIN: UNDO", G_PLANK2);
+        {
+            const char *f = cc.state == CS_GUESS ? "PLAY: HEAR AGAIN" : cc.state == CS_OVER ? "PLAY: AGAIN" :
+                            cc.state == CS_STAND ? "PLAY: START" : "";
+            cv_text(232 - text_w(&FONT_XS, f), 224, &FONT_XS, f, G_INK);
+        }
         band_send(y0);
     }
 }
@@ -264,19 +351,23 @@ static void chord_frame(uint32_t now)
         cc_judge(now);
     }
     if (cc.state == CS_SOLVED && (int32_t)(now - cc.next_ms) >= 0) {
-        if (++cc.chord >= CC_CHORDS) {
-            char t[8];
+        if (cc.chord + 1 >= CC_CHORDS) {
+            char t[16] = "SCORE ";
             cc.state = CS_OVER;
             cc.new_best = cc.score > sav.chord.best;
             if (cc.new_best) {
                 sav.chord.best = (uint16_t)cc.score;
                 save_dirty();
             }
-            int_text(cc.score, t);
-            app_say(cc.new_best ? "GAME OVER. NEW BEST, SCORE" : "GAME OVER, SCORE", t);
+            int_text(cc.score, t + 6);
+            app_say(cc.new_best ? "GAME OVER. NEW BEST" : "GAME OVER", t);
         } else {
+            char t[16] = "CHORD ";
+            cc.chord++;
             cc_new_chord(now);
-            app_say("NEXT CHORD", "");
+            int_text(cc.chord + 1, t + 6);
+            text_cat(t, " OF 5");
+            app_say(t, "");
         }
     }
     chord_draw(now);
@@ -320,20 +411,28 @@ static uint32_t chord_keys_lit(uint32_t *mid)   /* your picks lit; after a guess
 
 static void chord_where(char *t)
 {
-    int i;
+    int j;
     t[0] = 0;
     if (cc.state == CS_STAND) {
         text_cat(t, "CHORD CODE. KNOB 1, LEVEL ");
         sp_num(t, sav.chord.level);
         text_cat(t, ", ");
         text_cat(t, CC_LEVEL_NAME[clamp(sav.chord.level, 1, CC_LEVELS) - 1]);
-        text_cat(t, ". A HIDDEN CHORD PLAYS, PICK ITS NOTES ON THE KEYS. SIX GUESSES A CHORD. ");
+        text_cat(t, ". HEAR A CHORD, FIND ITS NOTES ON THE KEYS. SIX GUESSES A CHORD. ");
         if (sav.chord.best) {
             text_cat(t, "BEST ");
             sp_num(t, sav.chord.best);
             text_cat(t, ". ");
         }
         text_cat(t, "PLAY STARTS.");
+        return;
+    }
+    if (cc.state == CS_OVER) {
+        text_cat(t, "CHORD CODE. GAME OVER, SCORE ");
+        sp_num(t, cc.score);
+        text_cat(t, cc.new_best ? ". NEW BEST. FOUND " : ". FOUND ");
+        sp_num(t, cc.found);
+        text_cat(t, " OF 5. PLAY STARTS AGAIN.");
         return;
     }
     text_cat(t, "CHORD CODE. CHORD ");
@@ -343,15 +442,19 @@ static void chord_where(char *t)
     if (cc.state == CS_GUESS) {
         text_cat(t, ". GUESS ");
         sp_num(t, cc.tries + 1);
-        text_cat(t, " OF 6, ");
+        text_cat(t, " OF 6. PICK ");
         sp_num(t, cc.n);
-        text_cat(t, " NOTES. PLAY HEARS IT AGAIN.");
+        text_cat(t, " NOTES, ");
+        sp_num(t, picks());
+        text_cat(t, " PICKED. PLAY HEARS IT AGAIN.");
     } else {
-        text_cat(t, ". IT WAS");
-        for (i = 0; i < cc.n; i++) {
-            char n[6];
-            note_text(53 + cc.secret[i], n);
-            text_cat(t, " ");
+        char n[24];
+        chord_name(n);
+        text_cat(t, ". IT WAS ");
+        text_cat(t, n);
+        for (j = 0; j < cc.n; j++) {
+            note_text(53 + cc.secret[j], n);
+            text_cat(t, j ? " " : ", ");
             text_cat(t, n);
         }
         text_cat(t, ".");
