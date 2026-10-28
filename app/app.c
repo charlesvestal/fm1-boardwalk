@@ -95,6 +95,94 @@ static void sp_pct(char *t, int32_t v)
 
 #include "ringing.c"
 #include "art.c"
+
+/* ---------------------------------------------------------------- tickets --- */
+/* a finished round's tickets (games call tickets_win once, at its end): added and saved at once, then fed out of
+ * the machine on the screen a moment later, once the round's own sounds have rung: the count climbing on a ticket
+ * at the top right, a click a ticket (pay_frame, overlay), and said after the round's words */
+#define PAY_WAIT 900u                    /* ms from the round's end to the first ticket */
+#define PAY_HOLD 1800u                   /* ms the count stays once it is all out */
+static struct {
+    int32_t n, shown;                    /* this payout's tickets, and fed out so far; n 0: none */
+    uint32_t at, next, done;             /* the first ticket's time, the next one's, all out (0 not yet) */
+} pay;
+
+static void tickets_win(int n)
+{
+    if (n <= 0)
+        return;
+    sav.prize.tickets += (uint32_t)n;
+    sav.prize.won += (uint32_t)n;
+    save_dirty();
+    if (pay.n && !pay.done) {            /* (still paying out: added to it) */
+        pay.n += n;
+        return;
+    }
+    pay.n = n;
+    pay.shown = 0;
+    pay.at = pay.next = plat_ms() + PAY_WAIT;
+    pay.done = 0;
+}
+
+static void pay_frame(uint32_t now)      /* the main loop: the tickets fed out, and the count said */
+{
+    int32_t step, chunk;
+    if (!pay.n || (int32_t)(now - pay.next) < 0)
+        return;
+    if (pay.done) {
+        if (now - pay.done > PAY_HOLD)
+            pay.n = 0;
+        return;
+    }
+    chunk = pay.n / 50 + 1;              /* (a big payout: a few at a click, all out in under 2 s) */
+    step = clamp(1500 / (pay.n / chunk + 1), 30, 90);
+    pay.shown = pay.shown + chunk < pay.n ? pay.shown + chunk : pay.n;
+    pay.next = now + (uint32_t)step;
+    snd_lock();
+    bw_drum(BW_BLOCK_HI, 26 + (int)(pay.shown & 1) * 8);
+    snd_unlock();
+    if (pay.shown >= pay.n) {
+        pay.done = now | 1u;
+        if (ann_on()) {                  /* (queued: after the round's own words) */
+            sp_buf[0] = 0;
+            sp_num(sp_buf, pay.n);
+            text_cat(sp_buf, pay.n == 1 ? " TICKET. " : " TICKETS. ");
+            sp_num(sp_buf, (int32_t)sav.prize.tickets);
+            text_cat(sp_buf, " IN ALL.");
+            ann_say(sp_buf, 0, 0);
+        }
+    }
+}
+
+static void ticket_shape(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c)   /* a raffle ticket */
+{
+    int32_t i;
+    round_rect(x, y, w, h, 3, c);
+    fill_circle(x, y + h / 2, h / 5, mix(c, G_INK, 110));   /* the notches */
+    fill_circle(x + w - 1, y + h / 2, h / 5, mix(c, G_INK, 110));
+    for (i = y + 3; i < y + h - 3; i += 3)
+        cv_rect(x + h / 2 + 2, i, 1, 2, mix(c, G_PAPER, 140));   /* the tear line */
+}
+
+static void overlay(void)                /* over every screen, each band: the payout's count */
+{
+    uint32_t now = plat_ms();
+    int32_t x, w;
+    char s[16];
+    if (!pay.n || (int32_t)(now - pay.at) < 0)
+        return;
+    s[0] = '+';
+    s[1] = 0;
+    sp_num(s, pay.shown);
+    w = text_w(&FONT_B, s) + 30;
+    x = 236 - w;
+    if (pay.done && now - pay.done > PAY_HOLD - 250u)   /* away, up */
+        x += (int32_t)(now - pay.done - (PAY_HOLD - 250u)) * w / 250;
+    else if (now - pay.at < 160u)        /* in, from the right */
+        x += (int32_t)(160u - (now - pay.at)) * w / 160;
+    ticket_shape(x, 22, w, 24, G_ORANGE);
+    cv_text(x + 16, 26, &FONT_B, s, G_PAPER);
+}
 #include "games/bells.c"
 #include "games/pitch.c"
 #include "games/tiles.c"
@@ -160,7 +248,8 @@ void app_init(void)
         int n;
         memset(&sav, 0, sizeof sav);
         n = plat_store_load(OBJ_SAVE, &sav, sizeof sav);
-        if ((n != (int)sizeof sav && n != (int)offsetof(save_t, gull) && n != (int)offsetof(save_t, more)) ||
+        if ((n != (int)sizeof sav && n != (int)offsetof(save_t, gull) && n != (int)offsetof(save_t, more) &&
+             n != (int)offsetof(save_t, prize)) ||
             sav.magic != SAVE_MAGIC || sav.format != SAVE_FORMAT)   /* (an older save ends where a part begins) */
             save_defaults();
         if (!sav.gull.level)             /* (a save from before Gull) */
@@ -503,10 +592,11 @@ void app_frame(void)
     input();
     lights();
     ann_tick(now);
+    pay_frame(now);
     /* saved when nothing is playing (a flash write holds the sound a moment): in a game, 2.5 s after a change (a
      * round's closing chimes ring out first); on the
      * boardwalk (the sea and the tunes play on), after 10 s left alone, or on stepping into a game */
-    if (dirty && now - dirty_ms > (ui.game ? 2500u : 10000u) && !(ui.game && ui.game->playing && ui.game->playing())) {
+    if (dirty && now - dirty_ms > (ui.game ? 2500u : 10000u) && !(ui.game && ui.game->playing && ui.game->playing()) && !pay.n) {
         dirty = 0;
         if (plat_store_save(OBJ_SAVE, &sav, sizeof sav) != 0)
             app_warn("NOT SAVED", "THE FLASH DID NOT TAKE IT");
@@ -539,6 +629,12 @@ int app_expect(const char *what, int *got)
         return 1;
     if (!strcmp(what, "game"))           /* 0 the boardwalk, 1 + the cabinet */
         *got = ui.game ? sav.cab + 1 : 0;
+    else if (!strcmp(what, "tickets"))   /* to spend */
+        *got = (int)sav.prize.tickets;
+    else if (!strcmp(what, "won"))       /* won in all */
+        *got = (int)sav.prize.won;
+    else if (!strcmp(what, "pay"))       /* the payout on the screen: its tickets, 0 none */
+        *got = pay.n;
     else if (!strcmp(what, "cab"))
         *got = sav.cab;
     else if (!strcmp(what, "ringing"))
@@ -655,6 +751,10 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
     (void)d;
     if (striker_host_cmd(cmd, a) || balloon_host_cmd(cmd, a) || fish_host_cmd(cmd, a) || fortune_host_cmd(cmd, a) || teacups_host_cmd(cmd, a) || bumpers_host_cmd(cmd, a) || coaster_host_cmd(cmd, a))   /* the later games' own */
         return 1;
+    if (!strcmp(cmd, "givetickets")) {  /* tickets, as if won */
+        tickets_win(atoi(a));
+        return 1;
+    }
     if (!strcmp(cmd, "answer")) {
         pitch_key(!strcmp(a, "right") ? pt.target : (pt.target + 1) % NKEYS, 1, plat_ms());
         return 1;

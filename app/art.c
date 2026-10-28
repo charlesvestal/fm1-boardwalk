@@ -39,8 +39,10 @@ static void band(int32_t y0, uint16_t bg)   /* the next band: screen rows y0 .. 
     cv_y0 = 0;
     cv_y1 = BAND_H;
 }
+static void overlay(void);              /* (app.c: the tickets' payout, over every screen) */
 static void band_send(int32_t y0)
 {
+    overlay();
     cv_oy = 0;
     cv_blit(0, (uint32_t)y0);
 }

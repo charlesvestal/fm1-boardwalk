@@ -75,6 +75,13 @@ typedef struct {
         uint8_t level, mode;
         uint16_t best;
     } more[8];
+    /* added since the tickets (a save that ends before here loads with none) */
+    struct {
+        uint32_t tickets;                /* to spend at the prize counter */
+        uint32_t won;                    /* won in all */
+        uint32_t owned;                  /* the prizes traded for, a bit each (games/prizes.c) */
+        uint8_t night, fireworks, rsv[2];   /* the prizes that change the boardwalk, on (owned, and chosen) */
+    } prize;
 } save_t;
 enum { SV_STRIKER, SV_BALLOON, SV_FISH, SV_FORTUNE, SV_TEACUPS, SV_BUMPERS, SV_COASTER, SV_GULL_HOLD };
 extern save_t sav;
