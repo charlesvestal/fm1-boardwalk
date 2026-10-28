@@ -32,14 +32,14 @@ expect coaster_best >300
 shot station.png
 autocoaster off
 tap PLAY
-wait 7300
+wait 10200
 expect coaster_state 2
 shot rollback.png
 wait 8000
 expect coaster_state 3
 expect coaster_end 1
 expect coaster_hits 0
-expect coaster_dist <150
+expect coaster_dist <250
 expect coaster_best >300
 shot stalled.png
 turn K1 2

@@ -12,6 +12,7 @@
  * run's bass on the strong ones, so the time is set by the ride and the notes fall on it. Keys are judged in the tick.
  *
  * K1 the level: 1 C major scales, stepwise and slow; 2 other keys and arpeggios; 3 faster, longer runs, sevenths.
+ * Levels 1-3 grow faster and less forgiving (CO_BPM, CO_TOL, CO_WIN, CO_BRAKE).
  * PLAY starts and stops. Its saved level and best (metres) are sav.more[SV_COASTER]. Part of the unity build. */
 #include "game.h"
 
@@ -24,7 +25,6 @@
 #define CO_HST 50                        /* the first station's height */
 #define CO_HEND 30                       /* the last station's */
 #define CO_PX_M 4                        /* px a metre */
-#define CO_WIN 0.19f                     /* s: a note counts this far either side of its marker */
 #define CO_CAR_L 20                      /* a car's length, px */
 #define CO_LEVELS 3
 
@@ -65,8 +65,11 @@ static struct {
 static const char *const CO_LEVEL_NAME[CO_LEVELS] = {"C MAJOR", "MORE KEYS", "FAST"};
 static const char *const CO_LEVEL_SAY[CO_LEVELS] = {"C MAJOR SCALES", "MORE KEYS AND ARPEGGIOS",
                                                     "FASTER AND LONGER RUNS"};
-static const uint8_t CO_BPM[CO_LEVELS] = {80, 96, 116};
-static const uint8_t CO_TOL[CO_LEVELS] = {26, 24, 22};   /* px of climb a train at cruise can coast up */
+static const uint8_t CO_BPM[CO_LEVELS] = {72, 92, 112};
+static const uint8_t CO_TOL[CO_LEVELS] = {34, 30, 24};   /* px of climb a train at cruise can coast up */
+static const float CO_WIN[CO_LEVELS] = {0.30f, 0.25f, 0.21f};   /* s: a note counts this late after its marker, and
+                                                                  * half as long again early (hands run ahead) */
+static const float CO_BRAKE[CO_LEVELS] = {0.15f, 0.22f, 0.3f};  /* a wrong note's loss, of the cruise speed */
 static const uint8_t CO_NRUNS[CO_LEVELS] = {6, 8, 10};
 static const uint8_t SC_MAJ[7] = {0, 2, 4, 5, 7, 9, 11}, SC_MIN[7] = {0, 2, 3, 5, 7, 8, 10};
 
@@ -295,6 +298,13 @@ static void run_judged(int p)            /* a note judged: its run done if it wa
     }
 }
 
+static int co_near(int p)                /* the train within note p's window (early a half again: hands run ahead) */
+{
+    float d = (float)co.px[p] - co.x, v = co.v > co.v0 * 0.3f ? co.v : co.v0 * 0.3f, w = v * CO_WIN[co.level - 1];
+    return d >= 0.0f ? d <= 1.5f * w || d < 5.0f : -d <= w || -d < 5.0f;
+}
+static int co_now(void) { return co.nx < co.npts && co.pkind[co.nx] == CO_PNOTE && co_near(co.nx); }
+
 /* a key (in the tick): the next note judged by where the train is */
 static void coaster_key(int k, int down, uint32_t ms)
 {
@@ -307,13 +317,12 @@ static void coaster_key(int k, int down, uint32_t ms)
         return;
     }
     if (p < co.npts && co.pkind[p] == CO_PNOTE) {
-        float d = (float)co.px[p] - co.x, v = co.v > co.v0 * 0.3f ? co.v : co.v0 * 0.3f;
-        int near = d >= 0.0f ? d <= v * CO_WIN || d < 5.0f : -d <= v * CO_WIN || -d < 5.0f;
+        int near = co_near(p);
         if (near && 53 + k == co.pnote[p]) {   /* right, in time: it sounds, and lifts the train */
             int q = next_note(p);
             float rise = q >= 0 && co.prun[q] == co.prun[p] ? (float)(co.ph[q] - co.ph[p]) : 0.0f;
-            co.v = fm_sqrtf(co.v0 * co.v0 + 2.0f * co.g * (rise > 0.0f ? rise : 0.0f)) + 0.08f * co.v0;   /* the
-                                                                       * beat's pace, the climb's lift, a burst */
+            co.v = fm_sqrtf(1.3225f * co.v0 * co.v0 + 2.0f * co.g * (rise > 0.0f ? rise : 0.0f)) + 0.2f * co.v0;
+                                 /* the climb's lift, to reach the next note with a sixth to spare, and a burst */
             co.pstate[p] = CO_NHIT;
             co.hits++;
             co.burst_ms = ms | 1u;
@@ -322,10 +331,17 @@ static void coaster_key(int k, int down, uint32_t ms)
             return;
         }
         co.run_clean[co.prun[p]] = 0;
+        if (53 + k == co.pnote[p]) {     /* the right note out of time: heard as itself, half the brakes */
+            co.wrongs++;
+            co.wrong_ms = ms | 1u;
+            co.v -= 0.5f * CO_BRAKE[co.level - 1] * co.v0;
+            bw_note(53 + k, 70, BW_SAW);
+            return;
+        }
     }
     co.wrongs++;                         /* wrong, or nothing there: the brakes */
     co.wrong_ms = ms | 1u;
-    co.v -= 0.3f * co.v0;
+    co.v -= CO_BRAKE[co.level - 1] * co.v0;
     bw_note(53 + k, 100, BW_DUD);
 }
 
@@ -409,7 +425,7 @@ static void coaster_tick(uint32_t ms)    /* the ride, a millisecond at a time */
     while (co.cross < co.npts && (float)co.px[co.cross] <= co.x)
         co_sounds(co.cross++);
     while (co.nx < co.npts && co.pkind[co.nx] == CO_PNOTE &&   /* a note gone by unplayed */
-           co.x - (float)co.px[co.nx] > (co.v * CO_WIN > 5.0f ? co.v * CO_WIN : 5.0f)) {
+           co.x - (float)co.px[co.nx] > (co.v * CO_WIN[co.level - 1] > 5.0f ? co.v * CO_WIN[co.level - 1] : 5.0f)) {
         int p = co.nx;
         co.pstate[p] = CO_NMISS;
         co.misses++;
@@ -684,6 +700,11 @@ static void coaster_draw(uint32_t now)
             if (co.pkind[i] != CO_PNOTE)
                 continue;
             y = CO_GY - co.ph[i];
+            if (i == co.nx && state == CO_RIDE && co_now()) {   /* the next note, in its window: lit, play it now */
+                fill_circle(sx, y, 6, G_ORANGE);
+                ring_circle(sx, y, 6, G_INK);
+                continue;
+            }
             fill_circle(sx, y, 3, co.pstate[i] == CO_NHIT ? G_TEAL : co.pstate[i] == CO_NMISS ? G_MUTE : G_PAPER);
             ring_circle(sx, y, 3, G_INK);
         }
@@ -751,7 +772,7 @@ static void coaster_draw(uint32_t now)
             text_cat(s, "  ");
             text_cat(s, CO_LEVEL_NAME[co_level() - 1]);
             cv_text(94, 30, &FONT_B, s, G_INK);
-            cv_text(14, 56, &FONT_XS, "PLAY EACH NOTE AS THE TRAIN REACHES IT.", G_PLANK2);
+            cv_text(14, 56, &FONT_XS, "PLAY EACH NOTE AS ITS DOT LIGHTS UP.", G_PLANK2);
             cv_text(14, 70, &FONT_XS, "RIGHT NOTES PULL IT UP THE HILLS,", G_PLANK2);
             cv_text(14, 84, &FONT_XS, "WRONG ONES BRAKE. DON'T STALL!", G_PLANK2);
             if (sav.more[SV_COASTER].best) {
@@ -858,7 +879,7 @@ static void coaster_where(char *t)
         sp_num(t, co_level());
         text_cat(t, ", ");
         text_cat(t, CO_LEVEL_SAY[co_level() - 1]);
-        text_cat(t, ". PLAY EACH NOTE AS THE TRAIN REACHES IT. RIGHT NOTES PULL IT UP THE HILLS, WRONG ONES BRAKE. ");
+        text_cat(t, ". PLAY EACH NOTE AS ITS DOT LIGHTS UP. RIGHT NOTES PULL IT UP THE HILLS, WRONG ONES BRAKE. ");
         if (sav.more[SV_COASTER].best) {
             text_cat(t, "BEST ");
             sp_num(t, sav.more[SV_COASTER].best);

@@ -211,7 +211,10 @@ Bells as built: K1 method (ten: Plain Hunt, Plain Bob and Grandsire Doubles; Pla
 - The track is the melody: rail height = pitch, each run's notes named on their markers; play each as the front car
   reaches it (±190 ms): right = speed for the climb ahead, wrong = brakes; a stop on a climb rolls back and ends it.
   K1: 1 C major scales (6 runs), 2 other keys and arpeggios (8), 3 longer runs, sevenths (10). Best: metres
-  (sav.more[SV_COASTER]). The keys never light.
+  (sav.more[SV_COASTER]). Made kinder (2026-10-28): level 1 at 72 bpm; a note counts 0.3 s late and 0.45 s early
+  (0.25 / 0.21 on levels 2 / 3); a right note lifts the train to the next with a sixth to spare and a burst; a wrong
+  note brakes less; the right note out of time sounds as itself (it was the dull click, heard as "plucks"); the
+  next note's dot lights orange while it is time to play it. Played to nothing, level 1 still stalls (~10 s). The keys never light.
 
 ## More games still
 
