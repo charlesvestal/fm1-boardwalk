@@ -326,15 +326,29 @@ static void bells_draw(uint32_t now)
                     fill_circle(mx - (np - 1) * 3 + i * 6, 96, 2, i == 0 && n_until <= 2 ? G_RED : G_PLANK);
             }
         }
-        /* the blue line: rows scroll up, the row ringing at y 134 */
+        /* the blue line: rows scroll up, the row ringing at y 134. The rows go in pairs, handstroke and backstroke,
+         * a space and a dotted rule between pairs where the handstroke gap falls; the scrolling keeps time with the
+         * ringing, gap and all */
         if (bl.ringing || bl.score >= 0) {
-            const int32_t rh = 13, bx0 = 120 - (bl.bells - 1) * 23 / 2, yc = 134;   /* two rows past, six to come */
-            int32_t fy = place * rh / bl.bells, r;
-            int32_t lastx = -1, lasty = 0;
-            for (r = row - 5; r <= row + 5; r++) {
-                int32_t y = yc + (r - row) * rh - fy, p;
+            const int32_t rh = 13, gp = 6, bx0 = 120 - (bl.bells - 1) * 23 / 2, yc = 134;   /* two rows past, six to
+                                                                                          * come */
+            int32_t r, scroll, lastx = -1, lasty = 0;
+#define ROW_Y(r) ((r) * rh + ((r) / 2) * gp)
+            {                            /* how far the line has scrolled: from this row toward the next, by time */
+                int32_t ta = blow_time(row, 0), tb = blow_time(row + 1, 0), f = 0;
+                if (bl.ringing && t >= 0 && tb > ta)
+                    f = clamp((t - ta) * 256 / (tb - ta), 0, 256);
+                else if (!bl.ringing)
+                    f = 256 * place / bl.bells;
+                scroll = ROW_Y(row) + (ROW_Y(row + 1) - ROW_Y(row)) * f / 256;
+            }
+            for (r = row - 5; r <= row + 6; r++) {
+                int32_t y = yc + ROW_Y(r) - scroll, p;
                 if (r < 0 || r >= bl.nrows || y < 104 || y > 214)
                     continue;
+                if (!(r & 1) && r > 0)    /* the handstroke gap, before this pair */
+                    for (p = bx0 - 10; p < bx0 + (bl.bells - 1) * 23 + 10; p += 4)
+                        cv_rect(p, y - 2 - gp / 2 - 1, 2, 1, G_MUTE);
                 if (r == row)
                     cv_rect(bx0 - 10, y - 2, (bl.bells - 1) * 23 + 20, rh, G_BLUSH);
                 for (p = 0; p < bl.bells; p++) {
@@ -351,6 +365,7 @@ static void bells_draw(uint32_t now)
                     text_mid(x, y, &FONT_XS, s, bb == bl.mine ? G_RED : done ? G_INK : G_MUTE);
                 }
             }
+#undef ROW_Y
         } else {                         /* standing: the settings */
             static const char *const LAB[3] = {"K1 METHOD", "K2 BELL", "K3 PACE"};
             for (i = 0; i < 3; i++) {
