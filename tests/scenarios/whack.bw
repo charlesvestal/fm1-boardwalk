@@ -1,0 +1,17 @@
+# Whack-a-mole: every mole whacked over a round of 45 s: a score, no stray whacks; then over
+wait 800
+turn SELECT 6
+wait 400
+expect cab 6
+tap PLAY
+wait 100
+shot stand.png
+autowhack on
+tap PLAY
+wait 10000
+shot playing.png
+expect whack_score >10
+wait 37000
+expect whack_state 2
+expect whack_stray 0
+shot over.png

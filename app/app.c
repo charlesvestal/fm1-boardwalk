@@ -95,10 +95,15 @@ static void sp_pct(char *t, int32_t v)
 #include "games/pitch.c"
 #include "games/tiles.c"
 #include "games/echo.c"
+#include "games/chord.c"
+#include "games/simon.c"
+#include "games/whack.c"
+#include "games/gallery.c"
 #include "scene.c"
 
 /* --------------------------------------------------------------- cabinets --- */
-static const game_t *const GAMES[] = {&GAME_BELLS, &GAME_PITCH, &GAME_TILES, &GAME_ECHO};
+static const game_t *const GAMES[] = {&GAME_BELLS, &GAME_PITCH, &GAME_TILES, &GAME_ECHO, &GAME_CHORD, &GAME_SIMON,
+                                      &GAME_WHACK, &GAME_GALLERY};
 #define NGAMES ((int)(sizeof GAMES / sizeof GAMES[0]))
 
 /* ------------------------------------------------------------------- save --- */
@@ -125,6 +130,8 @@ static void save_defaults(void)
     sav.tiles.tempo = 100;
     sav.echo.tempo = 100;
     sav.echo.level = 1;
+    sav.chord.level = sav.whack.level = sav.gallery.level = 1;
+    sav.simon.level = 2;
 }
 
 /* ---------------------------------------------------------------- contract --- */
@@ -148,6 +155,11 @@ void app_init(void)
         sav.echo.tempo = 100;
     sav.echo.tempo = (uint8_t)clamp(sav.echo.tempo, 70, 140);
     sav.echo.level = (uint8_t)clamp(sav.echo.level, 1, EC_LEVELS);
+    sav.chord.level = (uint8_t)clamp(sav.chord.level, 1, CC_LEVELS);   /* (0 in a save from before them: 1) */
+    sav.whack.level = (uint8_t)clamp(sav.whack.level, 1, WM_LEVELS);
+    sav.gallery.level = (uint8_t)clamp(sav.gallery.level, 1, GL_LEVELS);
+    sav.simon.level = (uint8_t)clamp(sav.simon.level, 1, 3);
+    sav.bells.mode %= 3u;
 }
 void app_render(int32_t *lr, uint32_t n, uint32_t gain_q12) { bw_render(lr, n, gain_q12); }
 void app_panic(void) { bw_panic(); }
@@ -398,9 +410,7 @@ static void lights(void)
     plat_glow(1);
     if (g) {
         b = 1u << B_HOME | 1u << B_PLAY;
-        plat_play_red((g == &GAME_BELLS && bl.ringing) || (g == &GAME_TILES && tl.state == TP_PLAY) ||
-                      (g == &GAME_ECHO && ec.state == ES_PLAY) ||
-                      (g == &GAME_PITCH && (pt.state == PS_ASK || pt.state == PS_ANSWERED)));
+        plat_play_red(g->playing && g->playing());
         if (g->keys_lit)
             keys = g->keys_lit(&mid);
     } else {
@@ -419,9 +429,7 @@ void app_frame(void)
     lights();
     ann_tick(now);
     /* save when nothing is ringing (a flash write holds the sound a moment) */
-    if (dirty && now - dirty_ms > 1500u && !(ui.game == &GAME_BELLS && bl.ringing) &&
-        !(ui.game == &GAME_TILES && tl.state == TP_PLAY) && !(ui.game == &GAME_PITCH && pt.state == PS_ASK) &&
-        !(ui.game == &GAME_ECHO && ec.state == ES_PLAY)) {
+    if (dirty && now - dirty_ms > 1500u && !(ui.game && ui.game->playing && ui.game->playing())) {
         dirty = 0;
         if (plat_store_save(OBJ_SAVE, &sav, sizeof sav) != 0)
             app_warn("NOT SAVED", "THE FLASH DID NOT TAKE IT");
@@ -497,6 +505,32 @@ int app_expect(const char *what, int *got)
         *got = tl.notes_played;
     else if (!strcmp(what, "tiles_notes"))
         *got = tl.nnotes;
+    else if (!strcmp(what, "bells_result"))  /* conducting: 0 none, 1 round on target, 2 round off it, 3 not round */
+        *got = bl.result;
+    else if (!strcmp(what, "touches"))
+        *got = sav.touches;
+    else if (!strcmp(what, "bells_mode"))
+        *got = sav.bells.mode;
+    else if (!strcmp(what, "simon_state"))   /* 0 standing, 1 showing, 2 yours, 3 over */
+        *got = sm.state;
+    else if (!strcmp(what, "simon_len"))
+        *got = sm.len;
+    else if (!strcmp(what, "whack_state"))
+        *got = wm.state;
+    else if (!strcmp(what, "whack_score"))
+        *got = wm.score;
+    else if (!strcmp(what, "whack_stray"))
+        *got = wm.stray;
+    else if (!strcmp(what, "gallery_state"))
+        *got = gl.state;
+    else if (!strcmp(what, "gallery_score"))
+        *got = gl.score;
+    else if (!strcmp(what, "chord_state"))   /* 0 standing, 1 guessing, 2 solved (or given), 3 over */
+        *got = cc.state;
+    else if (!strcmp(what, "chord_score"))
+        *got = cc.score;
+    else if (!strcmp(what, "chord_tries"))
+        *got = cc.tries;
     else if (!strcmp(what, "echo_state"))    /* 0 standing, 1 playing, 2 over */
         *got = ec.state;
     else if (!strcmp(what, "echo_score"))
@@ -524,7 +558,7 @@ int app_expect(const char *what, int *got)
  *   answer right|wrong      Pitch EAR: the key of the note asked, or the one above it
  *   autotune on|off         Pitch TUNE: the knobs turned against the drift, as a good ear would
  *   autotiles all|half|off  Tiles: every tile hit on time, or every other one left */
-static int host_autotune, host_autotiles, host_autoecho;
+static int host_autoring, host_autoconduct, host_autotune, host_autotiles, host_autoecho, host_autosimon, host_autowhack, host_autoshoot, host_autochord;
 int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, const char *d)
 {
     (void)b;
@@ -536,6 +570,30 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
     }
     if (!strcmp(cmd, "autotune")) {
         host_autotune = !strcmp(a, "on");
+        return 1;
+    }
+    if (!strcmp(cmd, "autoring")) {     /* autoring on|off: Bells, your bells struck on time */
+        host_autoring = !strcmp(a, "on");
+        return 1;
+    }
+    if (!strcmp(cmd, "autoconduct")) {  /* autoconduct on|off: Bells conducting, the calls that bring it round */
+        host_autoconduct = !strcmp(a, "on");
+        return 1;
+    }
+    if (!strcmp(cmd, "autosimon")) {    /* autosimon on|off: every sequence played back */
+        host_autosimon = !strcmp(a, "on");
+        return 1;
+    }
+    if (!strcmp(cmd, "autowhack")) {    /* autowhack on|off: every mole whacked */
+        host_autowhack = !strcmp(a, "on");
+        return 1;
+    }
+    if (!strcmp(cmd, "autoshoot")) {    /* autoshoot on|off: every duck shot midway */
+        host_autoshoot = !strcmp(a, "on");
+        return 1;
+    }
+    if (!strcmp(cmd, "autochord")) {    /* autochord right|wrong|off: every guess the chord, or never */
+        host_autochord = !strcmp(a, "right") ? 1 : !strcmp(a, "wrong") ? 2 : 0;
         return 1;
     }
     if (!strcmp(cmd, "autoecho")) {     /* autoecho on|off: every call answered on time */
@@ -558,6 +616,38 @@ void app_host_ms(void)
             pitch_enc(EN_K2, -1);
         else if (pt.err < -1.0f)
             pitch_enc(EN_K2, 1);
+    }
+    if (host_autoring && ui.game == &GAME_BELLS && bl.ringing && bl.mode != BM_CONDUCT) {
+        int32_t t = (int32_t)(now - bl.t0);
+        int h;
+        for (h = 0; h < 2; h++)
+            if (bl.mine[h] >= 0 && bl.my_next[h] < bl.nrows &&
+                blow_time(bl.my_next[h], row_place(bl.my_next[h], bl.mine[h])) == t)
+                bells_key(h ? 20 : 2, 1, now);
+    }
+    if (host_autoconduct && ui.game == &GAME_BELLS && bl.ringing && bl.mode == BM_CONDUCT && !bl.complete &&
+        bl.call == RING_PLAIN && bl.leads < bl.target && bl.hint[bl.leads] != RING_PLAIN &&
+        bl.ring.nlead - 1 - bl.ring.at % bl.ring.nlead <= 6)
+        bells_key(bl.hint[bl.leads] == RING_BOB ? 2 : 20, 1, now);
+    if (host_autosimon && ui.game == &GAME_SIMON && sm.state == SS_YOURS && now - sm.yours_ms >= 250u)
+        simon_key(LANE_KEY[sm.seq[sm.pos]], 1, now);
+    if (host_autowhack && ui.game == &GAME_WHACK && now % 120u == 0u) {
+        int k;
+        for (k = 0; k < NKEYS; k++)
+            if (wm.up_until[k])
+                whack_key(k, 1, now);
+    }
+    if (host_autoshoot && ui.game == &GAME_GALLERY && gl.state == GS_PLAY && now % 50u == 0u) {
+        int i;
+        for (i = 0; i < GL_ON; i++)
+            if (gl.duck[i].on && !gl.duck[i].hit && gl.duck[i].x > 80 * 16 && gl.duck[i].x < 160 * 16)
+                gallery_key(gl.duck[i].key, 1, now);
+    }
+    if (host_autochord && ui.game == &GAME_CHORD && cc.state == CS_GUESS && !cc.judge_ms && !cc.secret_left &&
+        now - cc.shown_ms > 1000u && now - cc.secret_ms > 200u) {
+        int i;
+        for (i = 0; i < cc.n; i++)
+            chord_key(host_autochord == 1 ? cc.secret[i] : (cc.secret[i] + 1) % NKEYS, 1, now);
     }
     if (host_autoecho && ui.game == &GAME_ECHO && ec.state == ES_PLAY && (int32_t)(now - ec.t0) >= 0) {
         int32_t t = (int32_t)(now - ec.t0), bar = t / bar_ms(), st = t % bar_ms();
@@ -639,6 +729,91 @@ void app_speak_dump(void)
         sp_out("SCREEN", sp_buf);
         bl.ringing = 0;
     }
+    for (v = 0; v < BM_N; v++) {         /* Bells' three ways, standing and ringing */
+        sav.bells.mode = (uint8_t)v;
+        sav.bells.bell = 1;
+        sav.bells.method = 4;
+        sp_join("MODE", MODE_NAME[v]);
+        sp_out("READOUT", sp_buf);
+        bells_enter();
+        bells_where(sp_buf);
+        sp_out("SCREEN", sp_buf);
+        bl.ringing = 1;
+        bl.target = 3;
+        bells_where(sp_buf);
+        sp_out("SCREEN", sp_buf);
+        bl.call = RING_BOB;
+        bells_where(sp_buf);
+        sp_out("SCREEN", sp_buf);
+        bl.call = RING_PLAIN;
+        bl.ringing = 0;
+    }
+    pair_text(2, t);
+    sp_join("BELLS", t);
+    sp_out("READOUT", sp_buf);
+    bl.mode = BM_CONDUCT;
+    bl.leads = bl.target = 3;
+    bl.hint[0] = bl.hint[1] = bl.hint[2] = RING_BOB;
+    for (v = BR_ROUND; v <= BR_LOST; v++) {
+        bl.result = v;
+        bl.leads = v == BR_EARLY ? 5 : 3;
+        conduct_said(sp_buf);
+        sp_out("MSG", sp_buf);
+    }
+    bl.result = BR_NONE;
+    sav.bells.mode = 0;
+    /* the new cabinets, standing and playing */
+    sp_join("SPEED", "MEDIUM");
+    sp_out("READOUT", sp_buf);
+    for (v = SS_STAND; v <= SS_OVER; v++) {
+        sm.state = v;
+        sm.len = 4;
+        simon_where(sp_buf);
+        sp_out("SCREEN", sp_buf);
+    }
+    sm.state = SS_STAND;
+    for (v = WS_STAND; v <= WS_OVER; v++) {
+        wm.state = v;
+        whack_where(sp_buf);
+        sp_out("SCREEN", sp_buf);
+    }
+    wm.state = WS_STAND;
+    for (i = 1; i <= GL_LEVELS; i++) {
+        sav.gallery.level = (uint8_t)i;
+        gl.state = GS_STAND;
+        gallery_where(sp_buf);
+        sp_out("SCREEN", sp_buf);
+    }
+    for (v = GS_PLAY; v <= GS_OVER; v++) {
+        gl.state = v;
+        gallery_where(sp_buf);
+        sp_out("SCREEN", sp_buf);
+    }
+    gl.state = GS_STAND;
+    for (i = 1; i <= CC_LEVELS; i++) {
+        sav.chord.level = (uint8_t)i;
+        cc.state = CS_STAND;
+        chord_where(sp_buf);
+        sp_out("SCREEN", sp_buf);
+    }
+    cc.n = 3;
+    cc.secret[0] = 7;
+    cc.secret[1] = 11;
+    cc.secret[2] = 15;
+    for (v = CS_GUESS; v <= CS_OVER; v++) {
+        cc.state = v;
+        chord_where(sp_buf);
+        sp_out("SCREEN", sp_buf);
+    }
+    cc.state = CS_STAND;
+    sav.echo.tempo = 100;
+    sav.echo.level = 2;
+    for (v = ES_STAND; v <= ES_OVER; v++) {
+        ec.state = v;
+        echo_where(sp_buf);
+        sp_out("SCREEN", sp_buf);
+    }
+    ec.state = ES_STAND;
     /* Pitch */
     for (v = 1; v <= EAR_LEVELS; v++) {
         ear_level_text(v, t);

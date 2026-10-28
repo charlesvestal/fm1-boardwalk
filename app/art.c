@@ -179,3 +179,5 @@ static uint32_t rnd(uint32_t n)
     rnd_state = rnd_state * 1664525u + 1013904223u;
     return n ? (rnd_state >> 8) % n : 0;
 }
+
+static int key_lane(int k) { return clamp(key_x(k) / 60, 0, 3); }   /* the white keys in fours: F-B, C-F, G-C, D-G */

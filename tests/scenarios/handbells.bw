@@ -1,0 +1,19 @@
+# Bells, handbells: a pair (1 and 2), both struck on time by the test player: struck well
+wait 800
+tap PLAY
+wait 100
+turn K4 1
+wait 50
+expect bells_mode 1
+turn K2 1
+wait 50
+expect bell 1
+shot stand.png
+autoring on
+tap PLAY
+wait 6000
+shot ringing.png
+expect ringing 1
+tap PLAY
+wait 100
+expect score >89

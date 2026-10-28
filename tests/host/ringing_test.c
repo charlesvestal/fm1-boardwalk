@@ -81,6 +81,52 @@ int main(void)
     for (i = 0; i < RING_NMETHODS; i++)
         course(i, LEN[i]);
 
+    /* conducting Plain Bob: the calls, and the touches they make */
+    {
+        uint8_t found[RING_TOUCH_MAX + 1], calls[RING_TOUCH_MAX + 1][RING_TOUCH_MAX];
+        ring_change_t call[3];
+        int l, k, n;
+        CHECK(ring_pb_calls(&RING_METHODS[4], call) && call[0] == 0x03 && call[1] == 0x09 && call[2] == 0x0F,
+              "Plain Bob Minor: 12, 14, 1234");
+        CHECK(!ring_pb_calls(&RING_METHODS[6], call), "Cambridge has no Plain Bob calls");
+        for (k = 0; k < RING_NMETHODS; k++) {
+            if (!ring_pb_calls(&RING_METHODS[k], call))
+                continue;
+            n = ring_pb_touches(&RING_METHODS[k], found, calls);
+            printf("  %s %d: touches of", RING_METHODS[k].name, RING_METHODS[k].stage);
+            for (l = 1; l <= RING_TOUCH_MAX; l++)
+                if (found[l])
+                    printf(" %d", l);
+            printf(" leads\n");
+            CHECK(n > 1, "%s %d: more than one touch", RING_METHODS[k].name, RING_METHODS[k].stage);
+            /* each touch found: rung out change by change, it comes round first at its length */
+            for (l = 1; l <= RING_TOUCH_MAX; l++) {
+                ring_t r;
+                int lead, i, first = -1;
+                if (!found[l])
+                    continue;
+                ring_start(&r, &RING_METHODS[k]);
+                for (lead = 0; lead < l && first < 0; lead++)
+                    for (i = 0; i < r.nlead; i++) {
+                        ring_change_t save = r.lead[r.nlead - 1];
+                        r.lead[r.nlead - 1] = call[calls[l][lead]];
+                        ring_next(&r);
+                        r.lead[r.nlead - 1] = save;
+                        if (r.round && first < 0) {
+                            first = lead + 1;
+                            CHECK(i == r.nlead - 1, "%d leads: round mid-lead", l);
+                        }
+                    }
+                CHECK(first == l, "%s %d, %d leads: came round at lead %d", RING_METHODS[k].name, RING_METHODS[k].stage,
+                      l, first);
+            }
+        }
+        ring_pb_touches(&RING_METHODS[4], found, calls);
+        CHECK(found[5], "Plain Bob Minor's plain course: 5 leads");
+        CHECK(found[3] && calls[3][0] == RING_BOB && calls[3][1] == RING_BOB && calls[3][2] == RING_BOB,
+              "Plain Bob Minor: three bobs, three leads");
+    }
+
     /* the handstroke gap: rows 0 and 1 (hand, back) without a gap between, then a gap before row 2 */
     CHECK(ring_time(0, 0, 6, 200) == 0 && ring_time(1, 0, 6, 200) == 1200 && ring_time(2, 0, 6, 200) == 2600,
           "the handstroke gap");

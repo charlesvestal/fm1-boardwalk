@@ -31,7 +31,7 @@ typedef struct {
         uint8_t method;                  /* RING_METHODS */
         uint8_t bell;                    /* yours: 0 listen, 1..n */
         uint8_t pace;                    /* the gap between blows, in 10 ms */
-        uint8_t rsv;
+        uint8_t mode;                    /* 0 tower (one bell), 1 handbells (a pair), 2 conducting */
         uint8_t best[NMETHODS_MAX];      /* the best striking per method, %, 0 = not rung yet */
     } bells;
     struct {
@@ -49,7 +49,12 @@ typedef struct {
         uint8_t tempo, level;            /* bpm; the level to start at */
         uint16_t best;                   /* answers passed in one game */
     } echo;
-    uint8_t rsv[32];                     /* room to grow */
+    struct {
+        uint8_t level, rsv;
+        uint16_t best;
+    } chord, whack, gallery, simon;      /* each: its level (Simon: its speed) and its best */
+    uint16_t touches;                    /* Bells: touches conducted round on target */
+    uint8_t rsv[14];                     /* room to grow */
 } save_t;
 extern save_t sav;
 void save_dirty(void);                   /* saved at the next quiet moment */

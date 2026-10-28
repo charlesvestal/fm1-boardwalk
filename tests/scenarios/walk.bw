@@ -24,7 +24,6 @@ wait 400
 expect cab 2
 shot tiles.png
 tap OCT+
-tap OCT+
 wait 400
 expect cab 3
 shot echo.png

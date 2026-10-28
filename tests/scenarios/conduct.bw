@@ -1,0 +1,26 @@
+# Bells, conducting Plain Bob Minor: the test player makes the calls the hint gives: round at the length set, a touch
+# counted; then a touch with no calls: it ends with a result (round on target only if the plain course is the length
+# set), said with the way it could have gone
+wait 800
+tap PLAY
+wait 100
+turn K4 2
+wait 50
+expect bells_mode 2
+turn K3 -6
+wait 50
+shot stand.png
+autoconduct on
+tap PLAY
+wait 3000
+shot calling.png
+wait 120000
+expect ringing 0
+expect bells_result 1
+expect touches 1
+shot round.png
+autoconduct off
+tap PLAY
+wait 120000
+expect ringing 0
+expect bells_result >0

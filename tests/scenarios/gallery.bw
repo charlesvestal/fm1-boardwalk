@@ -1,0 +1,16 @@
+# The shooting gallery: every duck shot midway: twenty of twenty
+wait 800
+turn SELECT 7
+wait 400
+expect cab 7
+tap PLAY
+wait 100
+shot stand.png
+autoshoot on
+tap PLAY
+wait 6000
+shot playing.png
+wait 60000
+expect gallery_state 2
+expect gallery_score 20
+shot over.png

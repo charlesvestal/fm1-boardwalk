@@ -43,6 +43,17 @@ int ring_start(ring_t *r, const ring_method_t *m);   /* rounds; 0 = bad method *
 void ring_next(ring_t *r);                           /* the next change */
 int ring_place(const ring_t *r, int bell);           /* where a bell is in the row (0-based) */
 
+/* conducting Plain Bob: the lead end's change for a plain lead, a bob and a single (call[0..2]); 0 = the method is
+ * not Plain Bob on 5, 6 or 8 */
+#define RING_TOUCH_MAX 8                 /* leads */
+enum { RING_PLAIN, RING_BOB, RING_SINGLE };
+int ring_pb_calls(const ring_method_t *m, ring_change_t call[3]);
+/* every touch length up to RING_TOUCH_MAX leads that a sequence of calls brings round (first comes round at that
+ * lead): found[l] = 1, with one such sequence in calls[l][0..l-1] (RING_PLAIN / BOB / SINGLE); index 0 unused. How
+ * many lengths were found */
+int ring_pb_touches(const ring_method_t *m, uint8_t found[RING_TOUCH_MAX + 1],
+                    uint8_t calls[RING_TOUCH_MAX + 1][RING_TOUCH_MAX]);
+
 /* striking: blows at times t (ms) against where they belonged (ideal, ms); n blows.
  * The score is 100 for perfect, 0 for an average error of half a gap or more (gap: ms between blows) */
 int ring_score(const int32_t *t, const int32_t *ideal, int n, int32_t gap_ms);

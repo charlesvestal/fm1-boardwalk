@@ -169,3 +169,74 @@ int ring_score(const int32_t *t, const int32_t *ideal, int n, int32_t gap_ms)
     }
     return (int)(100 - (100 * sum + n * half / 2) / (n * half));
 }
+
+int ring_pb_calls(const ring_method_t *m, ring_change_t call[3])
+{
+    static const char *const PN[2][3] = {{"125", "145", "123"}, {"12", "14", "1234"}};   /* doubles; minor, major */
+    int i, odd = m->stage & 1;
+    if (m->name[0] != 'P' || m->name[6] != 'B' || (m->stage != 5 && m->stage != 6 && m->stage != 8))
+        return 0;
+    for (i = 0; i < 3; i++)
+        if (ring_lead(PN[!odd][i], m->stage, &call[i], 1) != 1)
+            return 0;
+    return 1;
+}
+
+/* a lead from rounds with each call at its end: the row it leaves, as a permutation (where each place's bell came
+ * from). A lead from any row is that row taken through the same permutation */
+static void lead_perm(const ring_method_t *m, const ring_change_t call[3], int c, uint8_t *perm)
+{
+    ring_t r;
+    int i;
+    ring_start(&r, m);
+    r.lead[r.nlead - 1] = call[c];
+    for (i = 0; i < r.nlead; i++)
+        ring_next(&r);
+    for (i = 0; i < RING_MAX; i++)
+        perm[i] = r.row[i];
+}
+
+static int touch_search(int stage, const uint8_t perm[3][RING_MAX], const uint8_t *lh, int depth, uint8_t *seq,
+                        uint8_t found[], uint8_t calls[][RING_TOUCH_MAX])
+{
+    int c, i, n = 0;
+    if (depth >= RING_TOUCH_MAX)
+        return 0;
+    for (c = 0; c < 3; c++) {
+        uint8_t next[RING_MAX];
+        int round = 1;
+        for (i = 0; i < stage; i++) {
+            next[i] = lh[perm[c][i]];
+            round &= next[i] == i;
+        }
+        seq[depth] = (uint8_t)c;
+        if (round) {
+            if (!found[depth + 1]) {
+                found[depth + 1] = 1;
+                for (i = 0; i <= depth; i++)
+                    calls[depth + 1][i] = seq[i];
+                n++;
+            }
+        } else {
+            n += touch_search(stage, perm, next, depth + 1, seq, found, calls);
+        }
+    }
+    return n;
+}
+
+int ring_pb_touches(const ring_method_t *m, uint8_t found[RING_TOUCH_MAX + 1],
+                    uint8_t calls[RING_TOUCH_MAX + 1][RING_TOUCH_MAX])
+{
+    ring_change_t call[3];
+    uint8_t perm[3][RING_MAX], lh[RING_MAX], seq[RING_TOUCH_MAX];
+    int i;
+    for (i = 0; i <= RING_TOUCH_MAX; i++)
+        found[i] = 0;
+    if (!ring_pb_calls(m, call))
+        return 0;
+    for (i = 0; i < 3; i++)
+        lead_perm(m, call, i, perm[i]);
+    for (i = 0; i < RING_MAX; i++)
+        lh[i] = (uint8_t)i;
+    return touch_search(m->stage, (const uint8_t(*)[RING_MAX])perm, lh, 0, seq, found, calls);
+}

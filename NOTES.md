@@ -10,7 +10,8 @@ boardwalk menu runs, Pitch and Tiles are cabinets with attract screens but no ga
 - **Built on fm1-base** (submodule `base/`, at fm1-base `main` 4587fda), laid out as AMB-1 / CTL-1: `./build.sh`
   (`PYTHON=/opt/homebrew/bin/python3.14`, podman running), `sh tests/run_tests.sh`. Identity **FM-1_12**
   (dev FM-1_1200), USB "Boardwalk FM-1". No Bluetooth, no USB audio out.
-- Four cabinets: **Bells**, **Pitch** (EAR and TUNE), **Tiles** (five songs), **Echo** (rhythm call and response).
+- Eight cabinets: **Bells** (tower, handbells, conducting), **Pitch** (EAR and TUNE), **Tiles** (five songs),
+  **Echo** (rhythm call and response), **Chord Code**, **Simon**, **Whack-a-mole**, **Shooting gallery**.
   Keys are read by the 1 kHz tick (exact times; Bells, Tiles and Echo answer in the tick itself); the black keys
   show what comes next (Bells: your place; Tiles: the next lane). The boardwalk plays each
   cabinet's attract tune quietly over the sea, fading as the row moves; K1 the sea, K2 the tunes. Gulls call.
@@ -18,7 +19,7 @@ boardwalk menu runs, Pitch and Tiles are cabinets with attract screens but no ga
   (`app/words.tsv`, `app/words.allow`, `app/web/words/`). The words link points at
   charlesvestal.github.io/fm1-boardwalk/words/, which does not exist yet (the repo is private).
 - Browser emulator builds (`./build.sh --web`), tested in Node.
-- Image 108 KB; RAM 23.5 of 96 KB; pool 206 of 336 KB (the plate ~139 KB, the canvas 69 KB).
+- Image 134 KB; RAM 24.9 of 96 KB; pool 206 of 336 KB (the plate ~139 KB, the canvas 69 KB).
 - **Not yet on the hardware**: the render's CPU, the frame rate of full-screen redraws, how the bells, tones and
   gulls sound through the speaker, whether the bass is audible on it, and whether Tiles' timing feels right
   (input is polled between frames; key times in ms from plat_ms).
@@ -119,11 +120,31 @@ Bells as built: K1 method (ten: Plain Hunt, Plain Bob and Grandsire Doubles; Pla
   sixteenths, anything); three misses and it is over. Calls written out in `games/echo.c` (six a level).
 - K1 tempo (70-140 bpm), K2 the level to start at. Best: answers passed.
 
-## More games (2026-10-28)
+## Bells' other ways (built 2026-10-28)
 
-From the list still: **Chord Code** (Mastermind with chords), **a puzzle** (Lumines-like, cleared lines play chords),
-Bells' handbells and conducting. New: **Whack-a-mole** on the keys' lights (each whack a note of a scale: whacking
-makes a tune); **Shooting gallery** (targets at pitches scroll by, the matching key shoots).
+- K4 MODE: TOWER (one bell), HANDBELLS (a pair: the left half of the keys the first bell, the right half the second;
+  K2 the pair), CONDUCTING (Plain Bob only: K1 skips to Doubles, Minor, Major). Conducting: a target length is picked
+  from the touches `ring_pb_touches` finds (every length up to 8 leads that some sequence of plain / bob / single
+  brings round; Minor 3 5 6 8, Doubles 2 4 6 8, Major 5 7), with one way there kept as the hint. The left half of the
+  keys calls BOB, the right half SINGLE (again: taken back); rows are worked out 3 ahead, so a call must come before
+  then. Round at the length: a touch counted (`sav.touches`); round early, or not round by target + 2 leads: said,
+  with the hint ("bob, bob, bob would do it").
+
+## Chord Code, Simon, Whack-a-mole, Shooting gallery (built 2026-10-28)
+
+- **Chord Code**: a hidden chord (L1 major / minor root position C4-B4, L2 any triad any inversion, L3 sevenths);
+  pick its notes, judged when you have picked as many: exact teal, right note other octave orange. 6 guesses, 5
+  chords; score 7 - guesses each. PLAY hears it again.
+- **Simon**: E A C# E (the original's A major) on the four lanes; one more each round, a little faster; one wrong
+  or 4 s idle ends it. K1 speed.
+- **Whack-a-mole**: moles on the pentatonic keys (C D E G A) on a 112 bpm groove's eighths; a whack plays its key;
+  gold = 3; a stray whack -1. 45 s. K1 level (how often, how long up).
+- **Shooting gallery**: ducks on three rows quack their note as they come on; press its key to shoot. L1-2 names
+  shown and keys lit (mid), L3-4 by ear. 20 ducks.
+
+## More games still
+
+From the list: **a puzzle** (Lumines-like, cleared lines play chords). New: none queued.
 
 Next: on the FM-1 (CPU, frame rate, the sound, Tiles' feel); then MIDI songs for Tiles (the user's own, as the
 notes above plan), and Bells' handbells and conducting.

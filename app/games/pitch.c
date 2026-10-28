@@ -513,8 +513,10 @@ static void pitch_where(char *t)         /* the screen, for a screen reader */
     text_cat(t, "PLAY STARTS.");
 }
 
+static int pitch_playing(void) { return pt.state == PS_ASK || pt.state == PS_ANSWERED; }
+
 static const uint8_t PITCH_TUNE[] = {60, 64, 67, 72, 0, 67, 64, 0};   /* the attract tune: an arpeggio */
 
 static const game_t GAME_PITCH = {"PITCH", RGB(62, 154, 176), pitch_enter, pitch_leave, pitch_frame, pitch_key,
                                   pitch_button, pitch_enc, 0, pitch_attract, pitch_best, pitch_keys_lit,
-                                  PITCH_TUNE, sizeof PITCH_TUNE, 300, BW_SAW, pitch_where, 0};
+                                  PITCH_TUNE, sizeof PITCH_TUNE, 300, BW_SAW, pitch_where, 0, pitch_playing};

@@ -25,4 +25,5 @@ typedef struct {
     void (*where)(char *t);              /* the whole screen for a screen reader, as a sentence (ANN_MAX) */
     uint8_t key_in_tick;                 /* 1: key is called from the tick, the moment a key goes down or up (a game
                                           * whose sound must answer at once: no screen redraw in between) */
+    int (*playing)(void);                /* 1 while a round is on: PLAY red, no saving (a flash write holds the sound) */
 } game_t;

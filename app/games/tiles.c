@@ -578,8 +578,10 @@ static void tiles_where(char *t)         /* the screen, for a screen reader */
 }
 
 /* the attract tune: Ode to Joy's first line */
+static int tiles_playing(void) { return tl.state == TP_PLAY; }
+
 static const uint8_t TILES_TUNE[] = {64, 64, 65, 67, 67, 65, 64, 62, 60, 60, 62, 64, 64, 0, 62, 62, 0, 0};
 
 static const game_t GAME_TILES = {"TILES", RGB(242, 163, 58), tiles_enter, tiles_leave, tiles_frame, tiles_key,
                                   tiles_button, tiles_enc, tiles_tick, tiles_attract, tiles_best, tiles_keys_lit,
-                                  TILES_TUNE, sizeof TILES_TUNE, 280, BW_PIANO, tiles_where, 1};
+                                  TILES_TUNE, sizeof TILES_TUNE, 280, BW_PIANO, tiles_where, 1, tiles_playing};

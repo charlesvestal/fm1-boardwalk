@@ -1,0 +1,22 @@
+# Chord Code: guessed right at once, five chords score 6 each; guessed wrong, six tries a chord and none found
+wait 800
+turn SELECT 4
+wait 400
+expect cab 4
+tap PLAY
+wait 100
+shot stand.png
+autochord right
+tap PLAY
+wait 30000
+expect chord_state 3
+expect chord_score 30
+shot right.png
+autochord wrong
+tap PLAY
+wait 8000
+expect chord_score 0
+shot wrong.png
+wait 60000
+expect chord_state 3
+expect chord_score 0

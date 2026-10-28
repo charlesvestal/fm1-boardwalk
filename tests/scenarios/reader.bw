@@ -4,10 +4,10 @@ wait 800
 listen
 wait 100
 where
-said BOARDWALK. BELLS, 1 OF 4
+said BOARDWALK. BELLS, 1 OF 8
 tap OCT+
 wait 400
-said PITCH, 2 OF 4
+said PITCH, 2 OF 8
 tap PLAY
 wait 100
 said PITCH, EAR. KNOB 1, GAME EAR
@@ -25,7 +25,7 @@ where
 said SCORE 1, LIVES 3
 tap HOME
 wait 100
-said BOARDWALK. PITCH, 2 OF 4
+said BOARDWALK. PITCH, 2 OF 8
 turn K1 2
 wait 300
 said SEA, 70%
@@ -33,7 +33,7 @@ tap OCT-
 wait 400
 tap PLAY
 wait 100
-said BELLS. KNOB 1, METHOD PLAIN BOB MINOR
+said BELLS, TOWER. KNOB 1, METHOD PLAIN BOB MINOR
 turn K1 1
 wait 300
 said METHOD, KENT TB MINOR
