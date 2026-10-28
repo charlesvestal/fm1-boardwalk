@@ -8,4 +8,6 @@
 set -e
 cd "$(dirname "$0")/.."
 V="${1:?usage: tools/publish_pages.sh VERSION}"
+export JIELI_TOOLCHAIN="${JIELI_TOOLCHAIN:-$HOME/.jieli/toolchain}"   # (as build.sh)
+export AC79_SDK="${AC79_SDK:-$HOME/fw-AC79_AIoT_SDK}"
 exec sh base/tools/publish_site.sh app "$V"
