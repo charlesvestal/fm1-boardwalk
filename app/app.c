@@ -149,7 +149,7 @@ void app_panic(void) { bw_panic(); }
 static struct {
     const game_t *game;                  /* in front of you; 0 on the boardwalk */
     int32_t pos;                         /* the row's position, cabinets x 256 (slides to sav.cab) */
-    uint32_t keys, btn;
+    uint32_t btn;
     char hud[24];                        /* a setting just turned, in place of the page count */
     uint32_t hud_until, drawn_ms;
     /* the attract tune of the cabinet in front: faded out when the row moves, the next one faded in */
@@ -272,14 +272,43 @@ static void step_down(void)              /* HOME: back to the boardwalk */
     }
 }
 
+/* the keys are read by the 1 kHz tick, so each press has its time to the millisecond however long the screen takes
+ * to draw: a game that must answer at once has them there (key_in_tick); the others get them here, from a queue */
+#define KQ 32u
+static uint32_t kq[KQ];                  /* key << 1 | down, << 8 above: the ms (its low 23 bits) */
+static volatile uint32_t kq_w, kq_r;
+static uint32_t tick_keys, kq_ms[KQ];
+
+static void keys_tick(uint32_t now)      /* the tick */
+{
+    uint32_t keys = plat_keys(), ch = keys ^ tick_keys, k;
+    const game_t *g = ui.game;
+    if (!ch)
+        return;
+    tick_keys = keys;
+    for (k = 0; k < NKEYS; k++) {
+        if (!(ch >> k & 1u))
+            continue;
+        if (g && g->key_in_tick) {
+            if (g->key)
+                g->key((int)k, (int)(keys >> k & 1u), now);
+        } else if (kq_w - kq_r < KQ) {
+            kq[kq_w % KQ] = k << 1 | (keys >> k & 1u);
+            kq_ms[kq_w % KQ] = now;
+            kq_w++;
+        }
+    }
+}
+
 static void input(void)
 {
-    uint32_t keys = plat_keys(), btn = plat_buttons(), now = plat_ms(), k;
+    uint32_t btn = plat_buttons(), k;
     const game_t *g = ui.game;
-    for (k = 0; k < NKEYS; k++) {
-        uint32_t bit = 1u << k;
-        if ((keys ^ ui.keys) & bit && g && g->key)
-            g->key((int)k, (keys & bit) != 0, now);
+    while (kq_r != kq_w) {               /* the keys, as the tick saw them */
+        uint32_t e = kq[kq_r % KQ], ms = kq_ms[kq_r % KQ];
+        kq_r++;
+        if (g && g->key && !g->key_in_tick)
+            g->key((int)(e >> 1), (int)(e & 1u), ms);
     }
     for (k = 0; k < NB; k++) {
         uint32_t bit = 1u << k;
@@ -313,7 +342,6 @@ static void input(void)
         else if (!g && (k == EN_K1 || k == EN_K2))
             boardwalk_knob((int)k, (int)e);
     }
-    ui.keys = keys;
     ui.btn = btn;
 }
 
@@ -323,6 +351,7 @@ void app_tick(void)
 {
     const game_t *g = ui.game, *c;
     uint32_t now = plat_ms();
+    keys_tick(now);
     if (g) {
         if (g->tick)
             g->tick(now);
@@ -358,20 +387,21 @@ void app_ui_init(void)
 static void lights(void)
 {
     const game_t *g = ui.game;
-    uint32_t b, keys = 0;
+    uint32_t b, keys = 0, mid = 0;
     plat_glow(1);
     if (g) {
         b = 1u << B_HOME | 1u << B_PLAY;
         plat_play_red((g == &GAME_BELLS && bl.ringing) || (g == &GAME_TILES && tl.state == TP_PLAY) ||
                       (g == &GAME_PITCH && (pt.state == PS_ASK || pt.state == PS_ANSWERED)));
         if (g->keys_lit)
-            keys = g->keys_lit();
+            keys = g->keys_lit(&mid);
     } else {
         b = (sav.cab > 0 ? 1u << B_OCTDN : 0u) | (sav.cab < NGAMES - 1 ? 1u << B_OCTUP : 0u) |
             (GAMES[sav.cab]->enter ? 1u << B_PLAY : 0u);
         plat_play_red(0);
     }
     plat_leds(b, keys);
+    plat_lights_mid(0, mid & ~keys);
 }
 
 void app_frame(void)
@@ -419,7 +449,10 @@ int app_expect(const char *what, int *got)
         *got = bl.ringing;
     else if (!strcmp(what, "score"))     /* the last touch's striking, -1 none */
         *got = bl.score;
-    else if (!strcmp(what, "clashes"))   /* Bells: pulls far too soon */
+    else if (!strcmp(what, "keys_lit") || !strcmp(what, "keys_mid")) {   /* the game's key lights */
+        uint32_t mid = 0, lit = ui.game && ui.game->keys_lit ? ui.game->keys_lit(&mid) : 0u;
+        *got = (int)(what[5] == 'l' ? lit : mid);
+    } else if (!strcmp(what, "clashes"))   /* Bells: pulls far too soon */
         *got = bl.clashes;
     else if (!strcmp(what, "blows"))     /* your blows judged */
         *got = bl.blows;

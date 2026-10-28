@@ -6,7 +6,10 @@ turn K2 2
 wait 100
 expect bell 2
 tap PLAY
-wait 740
+wait 100
+# bell 2 is in second place through the rounds: the second black key (key 3) lit
+expect keys_lit 8
+wait 640
 key 7 down
 key 7 up
 wait 1316

@@ -462,13 +462,24 @@ static void bells_best(char *t)
     }
 }
 
-static uint32_t bells_keys_lit(void)     /* every key, on your blow */
+/* the keys: the black ones are the places in a row, 1 to 6 (or 8), left to right; your place in the row you ring
+ * next is lit, in the row after it at the mid level: your path, on the keys. On your blow every white key lights */
+static uint32_t bells_keys_lit(uint32_t *mid)
 {
-    uint32_t now = plat_ms();
+    static const uint8_t BK[11] = PLAT_BLACK_KEYS, WK[16] = PLAT_WHITE_KEYS;
+    uint32_t now = plat_ms(), keys = 0;
     int32_t t = (int32_t)(now - bl.t0);
-    if (!bl.ringing || bl.mine < 0 || bl.my_next >= bl.nrows || t < 0)
+    int i;
+    *mid = 0;
+    if (!bl.ringing || bl.mine < 0 || bl.my_next >= bl.nrows || t < -600)
         return 0;
-    return blow_time(bl.my_next, my_place(bl.my_next)) - t < 80 ? (1u << NKEYS) - 1u : 0;
+    keys = 1u << BK[my_place(bl.my_next)];
+    if (bl.my_next + 1 < bl.nrows)
+        *mid = 1u << BK[my_place(bl.my_next + 1)];
+    if (blow_time(bl.my_next, my_place(bl.my_next)) - t < 80)
+        for (i = 0; i < 16; i++)
+            keys |= 1u << WK[i];
+    return keys;
 }
 
 static void bells_where(char *t)         /* the screen, for a screen reader */
@@ -524,4 +535,4 @@ static const uint8_t BELLS_TUNE[] = {83, 81, 79, 77, 76, 74, 0, 83, 81, 79, 77, 
 
 static const game_t GAME_BELLS = {"BELLS", RGB(232, 80, 91), bells_enter, bells_leave, bells_frame, bells_key,
                                   bells_button, bells_enc, bells_tick, bells_attract, bells_best, bells_keys_lit,
-                                  BELLS_TUNE, sizeof BELLS_TUNE, 260, BW_CHIME, bells_where};
+                                  BELLS_TUNE, sizeof BELLS_TUNE, 260, BW_CHIME, bells_where, 1};

@@ -451,9 +451,11 @@ static void pitch_best(char *t)
     }
 }
 
-static uint32_t pitch_keys_lit(void)
+static uint32_t pitch_keys_lit(uint32_t *mid)   /* answered: the right key lit, a wrong one at the mid level */
 {
-    return pt.state == PS_ANSWERED && pt.target >= 0 ? 1u << pt.target : 0u;
+    int shown = pt.state == PS_ANSWERED || (pt.state == PS_OVER && sav.pitch.mode == 0);
+    *mid = shown && pt.guess >= 0 && pt.guess != pt.target ? 1u << pt.guess : 0u;
+    return shown && pt.target >= 0 ? 1u << pt.target : 0u;
 }
 
 static void pitch_where(char *t)         /* the screen, for a screen reader */
@@ -515,4 +517,4 @@ static const uint8_t PITCH_TUNE[] = {60, 64, 67, 72, 0, 67, 64, 0};   /* the att
 
 static const game_t GAME_PITCH = {"PITCH", RGB(62, 154, 176), pitch_enter, pitch_leave, pitch_frame, pitch_key,
                                   pitch_button, pitch_enc, 0, pitch_attract, pitch_best, pitch_keys_lit,
-                                  PITCH_TUNE, sizeof PITCH_TUNE, 300, BW_SAW, pitch_where};
+                                  PITCH_TUNE, sizeof PITCH_TUNE, 300, BW_SAW, pitch_where, 0};

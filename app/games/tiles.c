@@ -145,6 +145,8 @@ static struct {
     uint32_t flash_ms[4];                /* a lane's key pressed: it flashes */
     uint8_t flash_bad[4];
 } tl;
+static volatile int tl_sound_key = -1;   /* the key of the tune's last note, and when (it flashes) */
+static volatile uint32_t tl_sound_ms;
 
 static void tiles_build(void)
 {
@@ -249,6 +251,10 @@ static void tiles_tick(uint32_t ms)
         if (st == TS_WAIT || (!first && tl.note_t[i] > t))
             break;                       /* not yet judged, or not yet due (a tile's first note: when hit, early too) */
         bw_note(tl.note_k[i], 100, BW_PIANO);
+        if (tl.note_k[i] >= 53 && tl.note_k[i] < 53 + NKEYS) {   /* its own key flashes */
+            tl_sound_key = tl.note_k[i] - 53;
+            tl_sound_ms = ms;
+        }
         tl.notes_played++;
         tl.mel_i++;
     }
@@ -365,23 +371,39 @@ static uint16_t tiles_key_col(int k)     /* the lanes on the keys, each in its c
     return mix(LANE_COL[lane], G_PAPER, 170);
 }
 
-/* the FM-1's own keys: a lane's four white keys light as its tile comes to the line, so you know where to press */
-static uint32_t tiles_keys_lit(void)
+/* the FM-1's own keys: a lane's four white keys light as its tile comes to the line, so you know where to press;
+ * the black keys of the lane of the tile after it light at the mid level (what comes next); and each note of the tune
+ * flashes on its own key as it sounds (the tune's real notes, whatever lane they came from) */
+static const uint16_t LANE_BLACK[4]   /* (bits: PLAT_BLACK_KEYS' order) */ = {(1u << 0) | (1u << 1) | (1u << 2), (1u << 3) | (1u << 4),
+                                      (1u << 5) | (1u << 6) | (1u << 7), (1u << 8) | (1u << 9) | (1u << 10)};
+
+static uint32_t tiles_keys_lit(uint32_t *mid)
 {
-    static const uint8_t WK[16] = PLAT_WHITE_KEYS;
-    int32_t t = (int32_t)(plat_ms() - tl.t0);
-    uint32_t keys = 0;
-    int i, w;
+    static const uint8_t WK[16] = PLAT_WHITE_KEYS, BK[11] = PLAT_BLACK_KEYS;
+    uint32_t now = plat_ms(), keys = 0;
+    int32_t t = (int32_t)(now - tl.t0);
+    int i, w, at_line = -1;
+    *mid = 0;
     if (tl.state != TP_PLAY)
         return 0;
     for (i = 0; i < tl.ntiles; i++) {
         int32_t dt = tl.tile_t[i] - t;
-        if (dt > 400)
+        if (tl.tile_state[i] != TS_WAIT || dt < -TL_GOOD)
+            continue;
+        if (at_line < 0) {               /* the next to hit */
+            at_line = i;
+            if (dt <= 400)
+                for (w = 0; w < 4; w++)
+                    keys |= 1u << WK[tl.tile_lane[i] * 4 + w];
+        } else {                         /* the one after it: its lane on the black keys */
+            for (w = 0; w < 11; w++)
+                if (LANE_BLACK[tl.tile_lane[i]] >> w & 1u)
+                    *mid |= 1u << BK[w];
             break;
-        if (tl.tile_state[i] == TS_WAIT && dt >= -TL_GOOD)
-            for (w = 0; w < 4; w++)
-                keys |= 1u << WK[tl.tile_lane[i] * 4 + w];
+        }
     }
+    if (tl_sound_key >= 0 && now - tl_sound_ms < 150u)
+        keys |= 1u << tl_sound_key;
     return keys;
 }
 
@@ -560,4 +582,4 @@ static const uint8_t TILES_TUNE[] = {64, 64, 65, 67, 67, 65, 64, 62, 60, 60, 62,
 
 static const game_t GAME_TILES = {"TILES", RGB(242, 163, 58), tiles_enter, tiles_leave, tiles_frame, tiles_key,
                                   tiles_button, tiles_enc, tiles_tick, tiles_attract, tiles_best, tiles_keys_lit,
-                                  TILES_TUNE, sizeof TILES_TUNE, 280, BW_PIANO, tiles_where};
+                                  TILES_TUNE, sizeof TILES_TUNE, 280, BW_PIANO, tiles_where, 1};
