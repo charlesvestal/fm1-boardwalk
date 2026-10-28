@@ -5,6 +5,7 @@ usb_manufacturer = "Boardwalk"
 usb_product = "Boardwalk FM-1"
 ble = false                    # an arcade: no radio
 usb_audio_out = false          # nothing to play through it
+mirror = true                  # the screen and panel on a computer (base web/mirror, tools/fm1_mirror.py)
 words = "words.tsv"
 include = ["dsp", "games"]
 o2 = ["dsp/bw.c"]              # the sound engine, at -O2
