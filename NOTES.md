@@ -1,6 +1,8 @@
 # Boardwalk
 
-An arcade firmware for the FM-1: a row of game cabinets on a seaside boardwalk. Private.
+An arcade firmware for the FM-1: a row of game cabinets on a seaside boardwalk. Public since 0.9
+(2026-10-28): github.com/charlesvestal/fm1-boardwalk, the site at charlesvestal.github.io/fm1-boardwalk
+(`tools/publish_pages.sh X.Y`).
 Brainstormed 2026-10-08 (session c0938ee9), dropped the same afternoon for Life, which became its own
 firmware (`fm1-life`). Picked up again 2026-10-28 on fm1-base (MPL-2.0): Bells runs (listen and ring), the
 boardwalk menu runs, Pitch and Tiles are cabinets with attract screens but no game yet.
@@ -32,7 +34,7 @@ boardwalk menu runs, Pitch and Tiles are cabinets with attract screens but no ga
   Scenarios walk to their cabinet by count (`turn SELECT n`), so a new order changes their counts.
 - Screen reader: every screen on WHERE, knob values as they settle, answers at once; fm1-reader's audit is clean
   (`app/words.tsv`, `app/words.allow`, `app/web/words/`). The words link points at
-  charlesvestal.github.io/fm1-boardwalk/words/, which does not exist yet (the repo is private).
+  charlesvestal.github.io/fm1-boardwalk/words/ (published with the site).
 - Browser emulator builds (`./build.sh --web`), tested in Node.
 - Image ~244 KB; RAM ~36 of 96 KB; pool 206 of 336 KB (the plate ~139 KB, the canvas 69 KB).
 - **Not yet on the hardware**: the render's CPU, the frame rate of full-screen redraws, how the bells, tones and
