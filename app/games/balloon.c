@@ -515,8 +515,8 @@ static void balloon_draw(uint32_t now)
             cv_rect(0, y, 240, 2, mix(G_SKY0, G_SKY2, (y - 18) * 256 / 180));
         cv_rect(210, 70, 22, 126, G_PLANK2);   /* the stall's post, and its price board */
         round_rect(196, 164, 42, 28, 4, G_PAPER);
-        text_mid(217, 166, &FONT_XS, "10 FOR", G_INK);
-        text_mid(217, 178, &FONT_XS, "A TIE", G_RED);
+        text_mid(217, 166, &FONT_XS, "MAX", G_INK);   /* the board: the most a balloon is worth */
+        text_mid(217, 178, &FONT_XS, "10 PTS", G_RED);
         bln_awning();
         bln_garland(now);
         bln_stall(now);
