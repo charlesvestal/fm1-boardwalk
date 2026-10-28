@@ -558,7 +558,7 @@ int app_expect(const char *what, int *got)
  *   answer right|wrong      Pitch EAR: the key of the note asked, or the one above it
  *   autotune on|off         Pitch TUNE: the knobs turned against the drift, as a good ear would
  *   autotiles all|half|off  Tiles: every tile hit on time, or every other one left */
-static int host_autoring, host_autoconduct, host_autotune, host_autotiles, host_autoecho, host_autosimon, host_autowhack, host_autoshoot, host_autochord;
+static int host_mash, host_autoring, host_autoconduct, host_autotune, host_autotiles, host_autoecho, host_autosimon, host_autowhack, host_autoshoot, host_autochord;
 int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, const char *d)
 {
     (void)b;
@@ -570,6 +570,10 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
     }
     if (!strcmp(cmd, "autotune")) {
         host_autotune = !strcmp(a, "on");
+        return 1;
+    }
+    if (!strcmp(cmd, "mash")) {         /* mash on|off: every key, every 320 ms (a game must not reward it) */
+        host_mash = !strcmp(a, "on");
         return 1;
     }
     if (!strcmp(cmd, "autoring")) {     /* autoring on|off: Bells, your bells struck on time */
@@ -636,6 +640,11 @@ void app_host_ms(void)
         for (k = 0; k < NKEYS; k++)
             if (wm.up_until[k])
                 whack_key(k, 1, now);
+    }
+    if (host_mash && ui.game && ui.game->key && now % 320u == 0u) {
+        int k;
+        for (k = 0; k < NKEYS; k++)
+            ui.game->key(k, 1, now);
     }
     if (host_autoshoot && ui.game == &GAME_GALLERY && gl.state == GS_PLAY && now % 50u == 0u) {
         int i;
