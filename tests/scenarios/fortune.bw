@@ -1,0 +1,86 @@
+# Fortune: a question of five notes, asked: the seer looks, answers, a card slides out and he has told one more;
+# the same notes again give the same card; a different question; K1 the voice; PLAY with no notes does nothing
+wait 800
+turn SELECT 13
+wait 400
+expect cab 13
+shot boardwalk.png
+tap PLAY
+wait 100
+expect game 14
+expect fortune_state 0
+shot empty.png
+tap PLAY
+wait 100
+expect fortune_state 0
+tapkey 7
+tapkey 11
+tapkey 14
+tapkey 11
+tapkey 19
+wait 300
+expect fortune_notes 5
+shot asking.png
+tap PLAY
+wait 600
+expect fortune_state 1
+shot looking.png
+wait 1800
+expect fortune_state 2
+shot answering.png
+wait 1200
+shot sliding.png
+wait 2500
+expect fortune_state 3
+expect fortune_told 1
+expect fortune_lucky 64
+expect fortune_maxlines <4
+fortune_mark
+shot card.png
+# the same question: the same card
+tap PLAY
+wait 100
+expect fortune_state 0
+expect fortune_notes 0
+tapkey 7
+tapkey 11
+tapkey 14
+tapkey 11
+tapkey 19
+tap PLAY
+wait 8000
+expect fortune_state 3
+expect fortune_same 1
+expect fortune_told 2
+# a key on the card starts a new question; eight notes at most
+tapkey 0
+expect fortune_state 0
+expect fortune_notes 1
+tapkey 2
+tapkey 4
+tapkey 5
+tapkey 7
+tapkey 9
+tapkey 11
+tapkey 12
+tapkey 14
+tapkey 16
+expect fortune_notes 8
+turn K1 1
+expect fortune_voice 1
+shot eight.png
+tap PLAY
+wait 9000
+expect fortune_state 3
+expect fortune_told 3
+shot card8.png
+turn K1 1
+expect fortune_voice 2
+tap PLAY
+tapkey 20
+tap PLAY
+wait 5000
+expect fortune_state 3
+tap HOME
+wait 100
+expect game 0

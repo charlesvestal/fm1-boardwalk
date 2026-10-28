@@ -1,0 +1,44 @@
+# Bumpers: from the boardwalk to the cabinet; the test player steers at the nearest car (bumps score), then at the
+# next note up (runs and chords: combos); sixty seconds and it is over, the best kept; PLAY stops a session
+wait 800
+turn SELECT 15
+wait 400
+expect cab 15
+tap PLAY
+wait 100
+expect game 16
+expect bumpers_state 0
+shot stand.png
+autobumpers on
+tap PLAY
+wait 200
+expect bumpers_state 1
+wait 8000
+shot play.png
+expect bumpers_bumps >2
+autobumpers tune
+wait 30000
+shot tune.png
+expect bumpers_combos >0
+wait 22500
+expect bumpers_state 2
+expect bumpers_score >10
+expect bumpers_best >10
+shot over.png
+autobumpers off
+turn K1 2
+wait 100
+expect bumpers_level 3
+shot stand3.png
+tap PLAY
+wait 3000
+expect bumpers_state 1
+key w0 down
+wait 600
+expect bumpers_steer 0
+key w0 up
+tapkey b3
+wait 300
+tap PLAY
+wait 100
+expect bumpers_state 0

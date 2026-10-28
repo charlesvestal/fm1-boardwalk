@@ -12,7 +12,9 @@ boardwalk menu runs, Pitch and Tiles are cabinets with attract screens but no ga
   (dev FM-1_1200), USB "Boardwalk FM-1". No Bluetooth, no USB audio out.
 - Eight cabinets: **Bells** (tower, handbells, conducting), **Pitch** (EAR and TUNE), **Tiles** (five songs),
   **Echo** (rhythm call and response), **Chord Code**, **Parrot** (inspired by Simon), **Moles** (whack-a-mole),
-  **Ducks** (a shooting gallery), **Gull** (inspired by Flappy Bird), **Claw**. Each cabinet has a three-word blurb (game_t.blurb) under the boardwalk, and the one
+  **Ducks** (a shooting gallery), **Gull** (inspired by Flappy Bird: FLAP, SING, HOLD),
+  **Claw**, **Striker**, **Balloons**, **Fishing**, **Fortune**, **Teacups**, **Bumpers**, **Coaster** (17 in all).
+  Velocity and pressure (lib/touch) were tried and are out: neither steady enough on the FM-1 to play by. Each cabinet has a three-word blurb (game_t.blurb) under the boardwalk, and the one
   in front blinks PRESS PLAY. A design and copy pass (2026-10-28, one reviewer a game) is in the git log.
   Keys are read by the 1 kHz tick (exact times; Bells, Tiles and Echo answer in the tick itself); the black keys
   show what comes next (Bells: your place; Tiles: the next lane). The boardwalk plays each
@@ -21,7 +23,7 @@ boardwalk menu runs, Pitch and Tiles are cabinets with attract screens but no ga
   (`app/words.tsv`, `app/words.allow`, `app/web/words/`). The words link points at
   charlesvestal.github.io/fm1-boardwalk/words/, which does not exist yet (the repo is private).
 - Browser emulator builds (`./build.sh --web`), tested in Node.
-- Image ~140 KB; RAM ~25 of 96 KB; pool 206 of 336 KB (the plate ~139 KB, the canvas 69 KB).
+- Image ~244 KB; RAM ~36 of 96 KB; pool 206 of 336 KB (the plate ~139 KB, the canvas 69 KB).
 - **Not yet on the hardware**: the render's CPU, the frame rate of full-screen redraws, how the bells, tones and
   gulls sound through the speaker, whether the bass is audible on it, and whether Tiles' timing feels right
   (input is polled between frames; key times in ms from plat_ms).
@@ -163,6 +165,48 @@ Bells as built: K1 method (ten: Plain Hunt, Plain Bob and Grandsire Doubles; Pla
   Grip: dead on 92 % (big 75), a key off 45 % (25); a slip drops it on the way up. 10 coins. K1 level: 1 notes shown
   (on the toys and the wish), 2 by ear, 3 chords. The key under the claw glows (where it is, never where to go).
 - Knobs that choose a game's way are MODE everywhere (Pitch, Gull: was GAME; Bells' K4).
+
+## Striker (built 2026-10-28)
+- High Striker as a timing game: a meter swings up and down the board; any key strikes, the puck flies to where the
+  meter was at that ms. The machine asks for a mark: on it 10, one off 6, two off 3; the bell asked and rung +5. Ten
+  strikes. K1: 1 TWO MARKS (2.8 s swing), 2 ONE MARK (1.8 s), 3 UNEVEN (speed changes every half swing). Levels 1-2
+  ask each target twice. Standing, a key is a practice strike. Best: points (sav.more[SV_STRIKER]).
+
+## Balloons (built 2026-10-28)
+- Hold a key to pump (the lit C4-C5 pad), let go to tie it off on the dashed ring: 10 / 6 / 3 / 1 within 1.5 / 3 / 5
+  / 8 px; a hidden pop point 7-16 px past the ring (4-9 on L3), a wobble and squeaks as it nears. The ring's note
+  plays first; the stretch tone reaches it at the ring. Size from the key's held time to the ms. K1: STEADY,
+  SURGING, TIGHT. 10 balloons; best points (sav.more[SV_BALLOON]).
+
+## Fishing (built 2026-10-28)
+- The pond over the keys; each fish a note, humming as it passes under the float. A key casts; a fish nibbles, the
+  float dips with its note: press that note's key within 0.9 / 0.7 / 0.45 s. Reel by tapping with the line's tug
+  (from the tick); too fast tightens the line (SNAP), no tap lets it run; any knob reels slowly. 10 casts or 90 s;
+  score the weight (sav.more[SV_FISH]). K1: NOTES SHOWN, BY EAR, FUSSY FISH.
+
+## Fortune (built 2026-10-28)
+- A toy: Barnaby Brass, a brass automaton seer (gear crown, turned-up moustache; an original character, no
+  caricature), answers a question of up to 8 notes (PLAY): the ball swirls, then your phrase echoed, turned upside
+  down and brought home, a bass under it; a card slides out: one of 32 fortunes by a hash of the notes (the same
+  question, the same card) and a lucky note. K1 his voice (chime, piano, bells); best = fortunes told.
+
+## Teacups (built 2026-10-28)
+- A 60 s ride to a fairground waltz in C (from the tick). Any key on a beat to tap spins the cup (perfect ±40 ms,
+  good ±90); off the beat it wobbles; a beat left out costs; drag 1.5 + 6 %/s. Top speed (85+): a countermelody, the
+  bulbs and keys chase. Score = tenths at the top + the peak. Any knob spins it a little (to 70). K1: ONE A BAR, EVERY
+  BEAT, FAST WALTZ. TC_LAG to set on the FM-1.
+
+## Bumpers (built 2026-10-28)
+- The dodgems from above: your car drives on; left white keys steer left, right ones right, sharper towards the
+  ends; black keys honk; SELECT steers too. The other cars sing a chord's tones; a bump scores its place in a rising
+  run, root-third-fifth within 2 s is CHORD +5; bumped from behind -1. 60 s. K1: SLOW, BUSY (one chases you), TRICKY
+  (they swerve). Best: points (sav.more[SV_BUMPERS]).
+
+## Coaster (built 2026-10-28)
+- The track is the melody: rail height = pitch, each run's notes named on their markers; play each as the front car
+  reaches it (±190 ms): right = speed for the climb ahead, wrong = brakes; a stop on a climb rolls back and ends it.
+  K1: 1 C major scales (6 runs), 2 other keys and arpeggios (8), 3 longer runs, sevenths (10). Best: metres
+  (sav.more[SV_COASTER]). The keys never light.
 
 ## More games still
 

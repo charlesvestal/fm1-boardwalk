@@ -1,0 +1,66 @@
+# Teacups: a ride tapped on every beat (the test player) reaches top speed and holds it; a ride tapped between the
+# beats wobbles and scores lower; the best kept from the first. Level 2 (every beat), then level 1 (one a bar)
+wait 800
+turn SELECT 14
+wait 400
+expect cab 14
+tap PLAY
+wait 100
+expect game 15
+expect teacups_state 0
+turn K1 1
+expect teacups_level 2
+wait 200
+shot stand.png
+autoteacups on
+tap PLAY
+wait 600
+shot intro.png
+expect teacups_state 1
+wait 6000
+shot climbing.png
+wait 8000
+expect teacups_speed >85
+expect teacups_wobbles 0
+shot top.png
+wait 47000
+expect teacups_state 2
+expect teacups_misses 0
+expect teacups_wobbles 0
+expect teacups_peak 100
+expect teacups_top >400
+expect teacups_score >500
+expect teacups_best >500
+shot over.png
+autoteacups offbeat
+tap PLAY
+wait 20000
+expect teacups_state 1
+expect teacups_hits 0
+expect teacups_wobbles >40
+expect teacups_speed <10
+shot wobble.png
+wait 42000
+expect teacups_state 2
+expect teacups_score <10
+expect teacups_best >500
+shot over_low.png
+autoteacups late
+tap PLAY
+wait 63000
+expect teacups_state 2
+expect teacups_perfect 0
+expect teacups_hits >130
+expect teacups_score >100
+expect teacups_best >500
+autoteacups off
+turn K1 -1
+expect teacups_level 1
+expect teacups_state 0
+autoteacups on
+tap PLAY
+wait 16000
+expect teacups_speed >85
+shot level1.png
+tap PLAY
+expect teacups_state 0

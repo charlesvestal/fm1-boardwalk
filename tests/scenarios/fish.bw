@@ -1,0 +1,65 @@
+# Fishing: the test player casts over a fish, hooks it on the dip and reels in time with the tug: fish landed, the
+# casts or the clock run out, the best kept. Then frantic reeling snaps the line, slow reeling lets the fish go, and
+# an early strike loses it; level 2 by ear
+wait 800
+turn SELECT 12
+wait 400
+expect cab 12
+tap PLAY
+wait 100
+expect game 13
+expect fish_state 0
+shot stand.png
+tap PLAY
+wait 30
+expect fish_state 1
+shot aim.png
+autofish on
+wait 2500
+shot wait.png
+wait 3000
+shot bite.png
+wait 2000
+shot reel.png
+wait 90000
+expect fish_state 4
+expect fish_catches >3
+expect fish_snaps 0
+expect fish_lost 0
+expect fish_weight >20
+expect fish_best >20
+shot over.png
+autofish frantic
+tap PLAY
+wait 40000
+expect fish_snaps >0
+expect fish_catches 0
+tap PLAY
+expect fish_state 0
+autofish slow
+tap PLAY
+wait 40000
+expect fish_lost >0
+expect fish_catches 0
+tap PLAY
+autofish early
+tap PLAY
+wait 30000
+expect fish_catches 0
+expect fish_casts >2
+tap PLAY
+autofish off
+expect fish_state 0
+turn K1 1
+expect fish_level 2
+shot level2.png
+autofish on
+tap PLAY
+wait 6000
+shot byear.png
+wait 20000
+expect fish_catches >1
+tap PLAY
+expect fish_state 0
+turn K1 -1
+expect fish_level 1
