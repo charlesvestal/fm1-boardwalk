@@ -1,5 +1,5 @@
 # Gull: flown well (the test player), FLAP passes posts; let go, it falls in the sea. SING: the gap's key held passes
-# posts; let go, it sinks into the sea
+# posts; let go, it sinks into the sea. PRESS: leaned on below the gap (the test player's pressure), it passes posts
 wait 800
 turn SELECT 8
 wait 400
@@ -29,5 +29,18 @@ expect gull_score >5
 shot sing.png
 autogull off
 key 0 up
+wait 8000
+expect gull_state 2
+turn K1 1
+wait 50
+shot press_stand.png
+autogull on
+tap PLAY
+wait 15000
+expect gull_state 1
+expect gull_score >3
+shot press.png
+autogull off
+key 9 up
 wait 8000
 expect gull_state 2

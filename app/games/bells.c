@@ -999,4 +999,4 @@ static const uint8_t BELLS_TUNE[] = {83, 81, 79, 77, 76, 74, 0, 83, 81, 79, 77, 
 
 static const game_t GAME_BELLS = {"BELLS", RGB(232, 80, 91), bells_enter, bells_leave, bells_frame, bells_key,
                                   bells_button, bells_enc, bells_tick, bells_attract, bells_best, bells_keys_lit,
-                                  BELLS_TUNE, sizeof BELLS_TUNE, 260, BW_CHIME, bells_where, 1, bells_playing, "RING THE CHANGES"};
+                                  BELLS_TUNE, sizeof BELLS_TUNE, 260, BW_CHIME, bells_where, 1, bells_playing, "RING THE CHANGES", 0};

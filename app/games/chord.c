@@ -467,4 +467,4 @@ static const uint8_t CHORD_TUNE[] = {60, 64, 67, 0, 62, 65, 69, 0, 59, 62, 67, 0
 
 static const game_t GAME_CHORD = {"CHORD CODE", RGB(90, 70, 140), chord_enter, chord_leave, chord_frame, chord_key,
                                   chord_button, chord_enc, 0, chord_attract, chord_best, chord_keys_lit,
-                                  CHORD_TUNE, sizeof CHORD_TUNE, 220, BW_PIANO, chord_where, 0, chord_playing, "CRACK THE CHORD"};
+                                  CHORD_TUNE, sizeof CHORD_TUNE, 220, BW_PIANO, chord_where, 0, chord_playing, "CRACK THE CHORD", 0};

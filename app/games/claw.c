@@ -37,6 +37,7 @@ static struct {
     uint32_t phase_ms, last_ms;
     float cy;                            /* the claw's height */
     int won;                             /* the last prize's tickets (for the screen) */
+    uint32_t ring_ms;                    /* a win: the lights flash a moment */
     uint32_t won_ms;
     uint8_t shelf[16];                   /* toys won this round: kinds, for the shelf */
     int nshelf;
@@ -250,7 +251,13 @@ static void claw_enter(void)
     cw.cy = CL_RAIL + 12;
     cw.held = -1;
 }
-static void claw_leave(void) { cw.state = CW_STAND; }
+static void claw_leave(void)
+{
+    cw.state = CW_STAND;
+    snd_lock();
+    bw_bells_damp();
+    snd_unlock();
+}
 
 static void claw_win(uint32_t now)       /* a toy down the chute */
 {
@@ -264,12 +271,15 @@ static void claw_win(uint32_t now)       /* a toy down the chute */
         cw.shelf[cw.nshelf++] = (uint8_t)(t->kind | (t->big ? 4 : 0));
     t->on = 0;
     cw.held = -1;
-    snd_lock();                          /* tickets: a run up */
-    bw_note(72, 80, BW_CHIME);
-    bw_note(wished ? 79 : 76, 80, BW_CHIME);
+    snd_lock();                          /* a win: bells and a bang, nothing like the toys' notes */
+    bw_drum(BW_CLAP, 120);
+    bw_drum(BW_KICK, 100);
+    bw_bell(0, 84, 127);
+    bw_bell(1, wished ? 91 : 88, 120);
     if (wished)
-        bw_note(84, 80, BW_CHIME);
+        bw_bell(2, 96, 115);
     snd_unlock();
+    cw.ring_ms = now;                    /* and the case's lights flash */
     s[0] = 0;
     int_text(tk, s);
     text_cat(s, " TICKETS");
@@ -413,7 +423,8 @@ static void claw_draw(uint32_t now)
             int_text(cw.tickets, s + text_len(s));
             cv_text(234 - text_w(&FONT_XS, s), 3, &FONT_XS, s, G_PAPER);
         }
-        cv_rect(0, 18, 240, 178, RGB(60, 50, 90));   /* the glass case */
+        cv_rect(0, 18, 240, 178, cw.ring_ms && now - cw.ring_ms < 900u && (now / 90u & 1u) ? RGB(110, 70, 120) :
+                                                                                         RGB(60, 50, 90));   /* the glass case */
         for (i = 0; i < cw.nshelf; i++)  /* the shelf of prizes won */
             fill_circle(30 + i * 13, 25, 4, (cw.shelf[i] & 3) == 1 ? RGB(250, 210, 60) : (cw.shelf[i] & 3) == 2 ?
                                                              C_WHITE : (cw.shelf[i] & 3) == 3 ? RGB(232, 88, 128) :
@@ -516,10 +527,12 @@ static void claw_best(char *t)
     }
 }
 
-static uint32_t claw_keys_lit(uint32_t *mid)   /* the key under the claw glows (where it is, not where to go) */
+static uint32_t claw_keys_lit(uint32_t *mid)   /* the key under the claw glows (where it is, not where to go); a win
+                                                 * flashes them all */
 {
+    uint32_t now = plat_ms();
     *mid = cw.state == CW_READY ? 1u << cw.col : 0u;
-    return 0;
+    return cw.ring_ms && now - cw.ring_ms < 900u && (now / 90u & 1u) ? (1u << NKEYS) - 1u : 0u;
 }
 
 static void claw_where(char *t)
@@ -552,4 +565,4 @@ static const uint8_t CLAW_TUNE[] = {76, 79, 84, 0, 83, 79, 76, 0, 74, 77, 81, 0,
 
 static const game_t GAME_CLAW = {"CLAW", RGB(232, 88, 128), claw_enter, claw_leave, claw_frame, claw_key, claw_button,
                                  claw_enc, 0, claw_attract, claw_best, claw_keys_lit, CLAW_TUNE, sizeof CLAW_TUNE, 180,
-                                 BW_CHIME, claw_where, 0, claw_playing, "GRAB THE PRIZE"};
+                                 BW_CHIME, claw_where, 0, claw_playing, "GRAB THE PRIZE", 0};

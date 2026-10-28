@@ -289,4 +289,4 @@ static const uint8_t SIMON_TUNE[] = {52, 57, 61, 64, 0, 64, 61, 57, 0, 0};
 
 static const game_t GAME_SIMON = {"PARROT", RGB(40, 160, 150), simon_enter, simon_leave, simon_frame, simon_key,
                                   simon_button, simon_enc, 0, simon_attract, simon_best, simon_keys_lit,
-                                  SIMON_TUNE, sizeof SIMON_TUNE, 260, BW_PLUCK, simon_where, 0, simon_playing, "COPY THE TUNE"};
+                                  SIMON_TUNE, sizeof SIMON_TUNE, 260, BW_PLUCK, simon_where, 0, simon_playing, "COPY THE TUNE", 0};

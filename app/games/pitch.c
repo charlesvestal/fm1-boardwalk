@@ -576,4 +576,4 @@ static const uint8_t PITCH_TUNE[] = {60, 64, 67, 72, 0, 67, 64, 0};   /* the att
 
 static const game_t GAME_PITCH = {"PITCH", RGB(62, 154, 176), pitch_enter, pitch_leave, pitch_frame, pitch_key,
                                   pitch_button, pitch_enc, 0, pitch_attract, pitch_best, pitch_keys_lit,
-                                  PITCH_TUNE, sizeof PITCH_TUNE, 300, BW_SAW, pitch_where, 0, pitch_playing, "NAME THAT NOTE"};
+                                  PITCH_TUNE, sizeof PITCH_TUNE, 300, BW_SAW, pitch_where, 0, pitch_playing, "NAME THAT NOTE", 0};

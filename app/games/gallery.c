@@ -430,4 +430,4 @@ static const uint8_t GALLERY_TUNE[] = {67, 0, 72, 0, 76, 0, 79, 0, 0, 0, 76, 79,
 
 static const game_t GAME_GALLERY = {"DUCKS", RGB(60, 40, 70), gallery_enter, gallery_leave, gallery_frame,
                                     gallery_key, gallery_button, gallery_enc, 0, gallery_attract, gallery_best,
-                                    gallery_keys_lit, GALLERY_TUNE, sizeof GALLERY_TUNE, 180, BW_CHIME, gallery_where, 0, gallery_playing, "SHOOT THE DUCKS"};
+                                    gallery_keys_lit, GALLERY_TUNE, sizeof GALLERY_TUNE, 180, BW_CHIME, gallery_where, 0, gallery_playing, "SHOOT THE DUCKS", 0};

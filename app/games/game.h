@@ -27,4 +27,6 @@ typedef struct {
                                           * whose sound must answer at once: no screen redraw in between) */
     int (*playing)(void);                /* 1 while a round is on: PLAY red, no saving (a flash write holds the sound) */
     const char *blurb;                   /* what it is, in three words: under the boardwalk, and said */
+    int (*touch)(void);                  /* 1: velocity and pressure wanted now (lib/touch on: the keys come from it, in
+                                          * the main loop, and touch_vel / touch_pressure say how they were played) */
 } game_t;

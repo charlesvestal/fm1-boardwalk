@@ -346,4 +346,4 @@ static const uint8_t WHACK_TUNE[] = {60, 0, 67, 64, 0, 69, 67, 0, 72, 0, 0, 0};
 
 static const game_t GAME_WHACK = {"MOLES", RGB(120, 84, 60), whack_enter, whack_leave, whack_frame, whack_key,
                                   whack_button, whack_enc, whack_tick, whack_attract, whack_best, whack_keys_lit,
-                                  WHACK_TUNE, sizeof WHACK_TUNE, 200, BW_PLUCK, whack_where, 1, whack_playing, "WHACK THE MOLES"};
+                                  WHACK_TUNE, sizeof WHACK_TUNE, 200, BW_PLUCK, whack_where, 1, whack_playing, "WHACK THE MOLES", 0};

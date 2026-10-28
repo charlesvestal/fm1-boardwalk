@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: MPL-2.0
  * Copyright (C) 2026 Charles Vestal */
-/* Gull: fly a gull between the pier's posts, two ways (K1):
+/* Gull: fly a gull between the pier's posts, three ways (K1):
  *
  * FLAP: any key flaps; gravity does the rest. Each flap sings a note of a pentatonic scale, higher the higher the gull
  * is, so a flight draws a tune.
@@ -8,6 +8,9 @@
  * SING: the key you hold is the gull's height, low keys low and high keys high; let go and it sinks. Each gap between
  * the posts is a note: it chimes as the posts come on, and you fly through by playing it. Level 1 shows the gap's note
  * on its post; level 2 is by ear.
+ *
+ * PRESS: hold one of the lit middle keys and lean on it: harder climbs, easing off sinks; a sharp strike leaps
+ * (velocity and pressure from the keys, lib/touch).
  *
  * Into a post or the sea and it is over; scored on the posts passed, faster as it goes. K2 the level. PLAY starts.
  * Part of the unity build. */
@@ -34,9 +37,21 @@ static struct {
     uint32_t keys;                       /* held now */
 } gu;
 
+#define GU_FLAP 0
+#define GU_SING 1
+#define GU_PRESS 2
+#define GU_PAD_LO 7                      /* PRESS: the pad, the white keys from C4 to C5 (all sensed) */
+#define GU_PAD_HI 19
+
 static int gu_half(void)                 /* half a gap */
 {
-    return gu.mode ? 20 : clamp(36 - gu.score / 4, 26, 36);
+    return gu.mode == GU_SING ? 20 : gu.mode == GU_PRESS ? clamp(40 - gu.score / 4, 30, 40) :
+                                                          clamp(36 - gu.score / 4, 26, 36);
+}
+
+static uint16_t *gu_best(int mode)       /* the best of each way */
+{
+    return mode == GU_PRESS ? &sav.more[SV_GULL_PRESS].best : &sav.gull.best[mode & 1];
 }
 
 static int key_y(int k)                  /* SING: a key's height (F3 low, G5 high) */
@@ -49,7 +64,7 @@ static void gu_post(int i, float x)      /* a new post: its gap (and note) */
     static const uint8_t C_MAJOR[16] = PLAT_WHITE_KEYS;
     gu.post_x[i] = x;
     gu.post_passed[i] = 0;
-    if (gu.mode) {
+    if (gu.mode == GU_SING) {
         gu.post_key[i] = C_MAJOR[1 + rnd(14)];   /* a white key, not the very ends */
         gu.post_gap[i] = key_y(gu.post_key[i]);
     } else {
@@ -62,7 +77,7 @@ static void gull_go(void)
 {
     int i;
     rnd_state ^= plat_ms() * 2654435761u;
-    gu.mode = sav.gull.mode & 1;
+    gu.mode = sav.gull.mode % 3u;
     gu.score = 0;
     gu.y = (GU_TOP + GU_SEA) / 2;
     gu.vy = 0.0f;
@@ -72,7 +87,7 @@ static void gull_go(void)
     for (i = 0; i < GU_POSTS; i++)
         gu_post(i, 260.0f + (float)(i * GU_SPACE));
     gu.state = GS2_FLY;
-    app_say(gu.mode ? "SING THROUGH THE GAPS" : "FLAP", "");
+    app_say(gu.mode == GU_SING ? "SING THROUGH THE GAPS" : gu.mode == GU_PRESS ? "PRESS TO CLIMB" : "FLAP", "");
 }
 
 static void gull_over(void)
@@ -80,9 +95,9 @@ static void gull_over(void)
     char t[16] = "SCORE ";
     gu.state = GS2_OVER;
     gu.over_ms = plat_ms();
-    gu.new_best = gu.score > sav.gull.best[gu.mode];
+    gu.new_best = gu.score > *gu_best(gu.mode);
     if (gu.new_best) {
-        sav.gull.best[gu.mode] = (uint16_t)gu.score;
+        *gu_best(gu.mode) = (uint16_t)gu.score;
         save_dirty();
     }
     snd_lock();                          /* the splash */
@@ -110,11 +125,21 @@ static void gull_key(int k, int down, uint32_t ms)
         return;
     if (gu.state != GS2_FLY) {           /* standing: the keys play */
         snd_lock();
-        bw_note(53 + k, 90, gu.mode ? BW_SAW : BW_PLUCK);
+        bw_note(53 + k, 90, gu.mode == GU_SING ? BW_SAW : BW_PLUCK);
         snd_unlock();
         return;
     }
-    if (gu.mode == 0) {                  /* a flap, and its note */
+    if (gu.mode == GU_PRESS) {           /* a strike: a leap as hard as it landed, and a note for the height */
+        if (k < GU_PAD_LO || k > GU_PAD_HI)
+            return;
+        gu.vy -= (float)touch_vel((uint32_t)k) * 1.1f;
+        gu.flap_ms = ms;
+        snd_lock();
+        bw_note(flap_note(), 70 + touch_vel((uint32_t)k) / 3, BW_PLUCK);
+        snd_unlock();
+        return;
+    }
+    if (gu.mode == GU_FLAP) {            /* a flap, and its note */
         gu.vy = -185.0f;
         gu.flap_ms = ms;
         snd_lock();
@@ -140,14 +165,14 @@ static void gull_button(int b, int down)
     }
 }
 
-static const char *const GU_MODE[2] = {"FLAP", "SING"};
+static const char *const GU_MODE[3] = {"FLAP", "SING", "PRESS"};
 
 static void gull_enc(int role, int steps)
 {
     if (gu.state == GS2_FLY)
         return;
     if (role == EN_K1) {
-        sav.gull.mode = (uint8_t)clamp(sav.gull.mode + steps, 0, 1);
+        sav.gull.mode = (uint8_t)clamp(sav.gull.mode + steps, 0, 2);
         app_readout("MODE", GU_MODE[sav.gull.mode]);
     } else if (role == EN_K2 && sav.gull.mode == 1) {
         sav.gull.level = (uint8_t)clamp(sav.gull.level + steps, 1, 2);
@@ -155,7 +180,7 @@ static void gull_enc(int role, int steps)
     } else {
         return;
     }
-    gu.mode = sav.gull.mode & 1;
+    gu.mode = sav.gull.mode % 3u;
     gu.state = GS2_STAND;
     save_dirty();
 }
@@ -163,7 +188,7 @@ static void gull_enc(int role, int steps)
 static void gull_enter(void)
 {
     gu.state = GS2_STAND;
-    gu.mode = sav.gull.mode & 1;
+    gu.mode = sav.gull.mode % 3u;
     gu.y = (GU_TOP + GU_SEA) / 2;
     gu.keys = 0;
 }
@@ -176,8 +201,22 @@ static void gull_step(uint32_t now)      /* the flight, by time */
     gu.last_ms = now;
     if (dt > 0.05f)
         dt = 0.05f;
-    if (gu.mode == 0) {
+    if (gu.mode == GU_FLAP) {
         gu.vy += 520.0f * dt;
+        gu.y += gu.vy * dt;
+        if (gu.y < GU_TOP + GU_R) {
+            gu.y = GU_TOP + GU_R;
+            gu.vy = 0.0f;
+        }
+    } else if (gu.mode == GU_PRESS) {    /* lean on a pad key: the harder, the more lift; none, it sinks */
+        int k, press = 0;
+        for (k = GU_PAD_LO; k <= GU_PAD_HI; k++)
+            if (gu.keys >> k & 1u) {
+                int p = touch_pressure((uint32_t)k);
+                press = p > press ? p : press;
+            }
+        gu.vy += (380.0f - (float)press * 6.5f) * dt;
+        gu.vy = gu.vy > 220.0f ? 220.0f : gu.vy < -220.0f ? -220.0f : gu.vy;
         gu.y += gu.vy * dt;
         if (gu.y < GU_TOP + GU_R) {
             gu.y = GU_TOP + GU_R;
@@ -259,7 +298,8 @@ static void gull_draw(uint32_t now)
         for (i = -20; i < 240; i += 20)
             cv_rect(i + (int32_t)(now / 120u % 20u), GU_SEA + 4, 10, 2, G_FOAM);
         cv_rect(0, 0, 240, 18, G_SEA);
-        cv_text(6, 3, &FONT_XS, gu.mode ? "GULL: SING" : "GULL: FLAP", G_PAPER);
+        cv_text(6, 3, &FONT_XS, gu.mode == GU_SING ? "GULL: SING" : gu.mode == GU_PRESS ? "GULL: PRESS" : "GULL: FLAP",
+                G_PAPER);
         if (gu.state != GS2_STAND) {
             int_text(gu.score, s);
             cv_text(234 - text_w(&FONT_XS, s), 3, &FONT_XS, s, G_PAPER);
@@ -272,7 +312,7 @@ static void gull_draw(uint32_t now)
             cv_rect(x - 2, g + h, GU_POST_W + 4, 5, G_PLANK);
             cv_rect(x, GU_TOP, GU_POST_W, g - h - GU_TOP, G_PLANK2);
             cv_rect(x - 2, g - h - 5, GU_POST_W + 4, 5, G_PLANK);
-            if (gu.mode && sav.gull.level == 1 && gu.post_key[i] >= 0) {   /* level 1: the gap's note on its post */
+            if (gu.mode == GU_SING && sav.gull.level == 1 && gu.post_key[i] >= 0) {   /* level 1: the gap's note on its post */
                 note_text(53 + gu.post_key[i], s);
                 text_mid(x + GU_POST_W / 2, g + h + 8, &FONT_XS, s, G_PAPER);
             }
@@ -280,8 +320,12 @@ static void gull_draw(uint32_t now)
         if (gu.state == GS2_STAND) {
             round_rect(14, 36, 212, 136, 8, G_PAPER);
             cv_text(24, 44, &FONT_XS, "K1 MODE", G_PLANK2);
-            cv_text(104, 42, &FONT_B, GU_MODE[sav.gull.mode & 1], G_INK);
-            if (sav.gull.mode) {
+            cv_text(104, 42, &FONT_B, GU_MODE[sav.gull.mode % 3u], G_INK);
+            if (sav.gull.mode == GU_PRESS) {
+                cv_text(24, 92, &FONT_XS, "HOLD A LIT KEY AND LEAN ON IT:", G_PLANK2);
+                cv_text(24, 106, &FONT_XS, "HARDER CLIMBS, EASING OFF SINKS.", G_PLANK2);
+                cv_text(24, 120, &FONT_XS, "A SHARP STRIKE LEAPS.", G_PLANK2);
+            } else if (sav.gull.mode == GU_SING) {
                 cv_text(24, 66, &FONT_XS, "K2 LEVEL", G_PLANK2);
                 cv_text(104, 64, &FONT_B, sav.gull.level == 1 ? "NOTES SHOWN" : "BY EAR", G_INK);
                 cv_text(24, 92, &FONT_XS, "HOLD A KEY: THAT IS YOUR HEIGHT.", G_PLANK2);
@@ -292,14 +336,15 @@ static void gull_draw(uint32_t now)
                 cv_text(24, 106, &FONT_XS, "AND KEEP OUT OF THE SEA. EACH", G_PLANK2);
                 cv_text(24, 120, &FONT_XS, "FLAP SINGS, HIGHER AS YOU CLIMB.", G_PLANK2);
             }
-            if (sav.gull.best[sav.gull.mode & 1]) {
+            if (*gu_best(sav.gull.mode % 3u)) {
                 text_cat((s[0] = 0, s), "BEST ");
-                int_text(sav.gull.best[sav.gull.mode & 1], s + 5);
+                int_text(*gu_best(sav.gull.mode % 3u), s + 5);
                 cv_text(24, 146, &FONT_B, s, G_INK);
             }
         }
         gull_bird(GU_X, (int32_t)gu.y + (gu.state == GS2_OVER ? (int32_t)((now - gu.over_ms) / 20u) : 0),
-                  gu.mode == 0 ? now - gu.flap_ms < 150u : (now / 160u & 1u));
+                  gu.mode != GU_SING ? now - gu.flap_ms < 150u || (gu.mode == GU_PRESS && gu.vy < -40.0f) :
+                                       (now / 160u & 1u));
         if (gu.state == GS2_OVER) {
             round_rect(40, 70, 160, 70, 8, G_PAPER);
             text_mid(120, 76, &FONT_B, "SPLASH!", G_RED);
@@ -339,33 +384,44 @@ static void gull_attract(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t ms
 static void gull_best(char *t)
 {
     t[0] = 0;
-    if (sav.gull.best[sav.gull.mode & 1]) {
+    if (*gu_best(sav.gull.mode % 3u)) {
         text_cat(t, "BEST ");
-        int_text(sav.gull.best[sav.gull.mode & 1], t + 5);
+        int_text(*gu_best(sav.gull.mode % 3u), t + 5);
         text_cat(t, " POSTS");
     }
 }
 
-static uint32_t gull_keys_lit(uint32_t *mid)   /* none: the game is finding them */
+static uint32_t gull_keys_lit(uint32_t *mid)   /* none (the game is finding them); PRESS: its pad glows */
 {
+    static const uint8_t WK[16] = PLAT_WHITE_KEYS;
+    int i;
     *mid = 0;
+    if (gu.mode == GU_PRESS)
+        for (i = 0; i < 16; i++)
+            if (WK[i] >= GU_PAD_LO && WK[i] <= GU_PAD_HI)
+                *mid |= 1u << WK[i];
     return 0;
 }
+
+static int gull_touch(void) { return sav.gull.mode % 3u == GU_PRESS; }
 
 static void gull_where(char *t)
 {
     t[0] = 0;
     if (gu.state == GS2_STAND) {
-        text_cat(t, sav.gull.mode ? "GULL. KNOB 1, MODE SING. KNOB 2, LEVEL " : "GULL. KNOB 1, MODE FLAP. ");
-        if (sav.gull.mode) {
+        text_cat(t, sav.gull.mode == GU_SING ? "GULL. KNOB 1, MODE SING. KNOB 2, LEVEL " :
+                    sav.gull.mode == GU_PRESS ? "GULL. KNOB 1, MODE PRESS. " : "GULL. KNOB 1, MODE FLAP. ");
+        if (sav.gull.mode == GU_PRESS) {
+            text_cat(t, "HOLD A LIT MIDDLE KEY AND LEAN ON IT, HARDER CLIMBS, EASING OFF SINKS. ");
+        } else if (sav.gull.mode == GU_SING) {
             text_cat(t, sav.gull.level == 1 ? "1, NOTES SHOWN. " : "2, BY EAR. ");
             text_cat(t, "HOLD A KEY FOR YOUR HEIGHT, PLAY EACH GAP'S NOTE TO FLY THROUGH IT. ");
         } else {
             text_cat(t, "ANY KEY FLAPS. MISS THE POSTS AND KEEP OUT OF THE SEA. ");
         }
-        if (sav.gull.best[sav.gull.mode & 1]) {
+        if (*gu_best(sav.gull.mode % 3u)) {
             text_cat(t, "BEST ");
-            sp_num(t, sav.gull.best[sav.gull.mode & 1]);
+            sp_num(t, *gu_best(sav.gull.mode % 3u));
             text_cat(t, ". ");
         }
         text_cat(t, "PLAY STARTS.");
@@ -384,4 +440,4 @@ static const uint8_t GULL_TUNE[] = {72, 0, 76, 79, 0, 0, 81, 79, 76, 0, 72, 0, 0
 static const game_t GAME_GULL = {"GULL", RGB(110, 143, 196), gull_enter, gull_leave, gull_frame, gull_key,
                                  gull_button, gull_enc, 0, gull_attract, gull_best, gull_keys_lit,
                                  GULL_TUNE, sizeof GULL_TUNE, 200, BW_PLUCK, gull_where, 0, gull_playing,
-                                 "FLY THE GULL"};
+                                 "FLY THE GULL", gull_touch};

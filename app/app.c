@@ -43,6 +43,10 @@ static void int_text(int32_t v, char *b)     /* signed, no padding */
     *b = 0;
 }
 
+#ifdef PLAT_HOST
+static void sp_out(const char *kind, const char *t) { printf("%s\t%s\n", kind, t); }   /* the speakdump's lines */
+#endif
+
 /* the sound engine's commands come from the main loop and from the tick (a game's bells on time): one at a time */
 static uint32_t snd_f;
 static void snd_lock(void) { snd_f = plat_lock(); }
@@ -101,11 +105,20 @@ static void sp_pct(char *t, int32_t v)
 #include "games/gallery.c"
 #include "games/gull.c"
 #include "games/claw.c"
+#include "games/striker.c"
+#include "games/balloon.c"
+#include "games/fish.c"
+#include "games/fortune.c"
+#include "games/teacups.c"
+#include "games/bumpers.c"
+#include "games/coaster.c"
 #include "scene.c"
 
 /* --------------------------------------------------------------- cabinets --- */
 static const game_t *const GAMES[] = {&GAME_BELLS, &GAME_PITCH, &GAME_TILES, &GAME_ECHO, &GAME_CHORD, &GAME_SIMON,
-                                      &GAME_WHACK, &GAME_GALLERY, &GAME_GULL, &GAME_CLAW};
+                                      &GAME_WHACK, &GAME_GALLERY, &GAME_GULL, &GAME_CLAW, &GAME_STRIKER,
+                                      &GAME_BALLOON, &GAME_FISH, &GAME_FORTUNE, &GAME_TEACUPS, &GAME_BUMPERS,
+                                      &GAME_COASTER};
 #define NGAMES ((int)(sizeof GAMES / sizeof GAMES[0]))
 
 /* ------------------------------------------------------------------- save --- */
@@ -145,11 +158,14 @@ void app_init(void)
         int n;
         memset(&sav, 0, sizeof sav);
         n = plat_store_load(OBJ_SAVE, &sav, sizeof sav);
-        if ((n != (int)sizeof sav && n != (int)offsetof(save_t, gull)) || sav.magic != SAVE_MAGIC ||
-            sav.format != SAVE_FORMAT)   /* (the save before Gull ends where it begins) */
+        if ((n != (int)sizeof sav && n != (int)offsetof(save_t, gull) && n != (int)offsetof(save_t, more)) ||
+            sav.magic != SAVE_MAGIC || sav.format != SAVE_FORMAT)   /* (an older save ends where a part begins) */
             save_defaults();
         if (!sav.gull.level)             /* (a save from before Gull) */
             sav.gull.level = 1;
+        for (n = 0; n < 8; n++)          /* (from before the later games) */
+            if (!sav.more[n].level)
+                sav.more[n].level = 1;
     }
     sav.cab = (uint8_t)(sav.cab % NGAMES);
     sav.bells.method = (uint8_t)(sav.bells.method % RING_NMETHODS);
@@ -170,7 +186,7 @@ void app_init(void)
     sav.gallery.level = (uint8_t)clamp(sav.gallery.level, 1, GL_LEVELS);
     sav.simon.level = (uint8_t)clamp(sav.simon.level, 1, 3);
     sav.bells.mode %= 3u;
-    sav.gull.mode &= 1u;
+    sav.gull.mode %= 3u;
     sav.gull.level = (uint8_t)clamp(sav.gull.level, 1, 2);
     sav.claw.level = (uint8_t)clamp(sav.claw.level, 1, CL_LEVELS);
 }
@@ -320,11 +336,15 @@ static uint32_t kq[KQ];                  /* key << 1 | down, << 8 above: the ms 
 static volatile uint32_t kq_w, kq_r;
 static uint32_t tick_keys, kq_ms[KQ];
 
+static uint8_t sh_touch_on;              /* lib/touch on: the keys come from it, in the main loop (input). (Not
+                                          * touch_live / touch_held: lib/touch.c's own, in the same unity build) */
+static uint32_t sh_touch_keys;
+
 static void keys_tick(uint32_t now)      /* the tick */
 {
     uint32_t keys = plat_keys(), ch = keys ^ tick_keys, k;
     const game_t *g = ui.game;
-    if (!ch)
+    if (sh_touch_on || !ch)
         return;
     tick_keys = keys;
     for (k = 0; k < NKEYS; k++) {
@@ -341,10 +361,33 @@ static void keys_tick(uint32_t now)      /* the tick */
     }
 }
 
+static void touch_follow(void)           /* touch on while the game in front wants it, off otherwise */
+{
+    int want = ui.game && ui.game->touch && ui.game->touch();
+    if (want == sh_touch_on)
+        return;
+    touch_on(want);
+    sh_touch_on = (uint8_t)want;
+    sh_touch_keys = 0;
+    tick_keys = plat_keys();
+}
+
 static void input(void)
 {
     uint32_t btn = plat_buttons(), k;
     const game_t *g = ui.game;
+    touch_follow();
+    if (sh_touch_on) {                    /* the keys from touch: each press and release, with how it was played */
+        uint32_t keys, ch, now = plat_ms();
+        touch_poll();
+        keys = touch_keys();
+        ch = keys ^ sh_touch_keys;
+        sh_touch_keys = keys;
+
+        for (k = 0; k < NKEYS; k++)
+            if ((ch >> k & 1u) && g && g->key)
+                g->key((int)k, (int)(keys >> k & 1u), now);
+    }
     while (kq_r != kq_w) {               /* the keys, as the tick saw them */
         uint32_t e = kq[kq_r % KQ], ms = kq_ms[kq_r % KQ];
         kq_r++;
@@ -482,6 +525,8 @@ void app_frame(void)
 #ifdef PLAT_HOST
 int app_expect(const char *what, int *got)
 {
+    if (striker_expect(what, got) || balloon_expect(what, got) || fish_expect(what, got) || fortune_expect(what, got) || teacups_expect(what, got) || bumpers_expect(what, got) || coaster_expect(what, got))   /* the later games' own */
+        return 1;
     if (!strcmp(what, "game"))           /* 0 the boardwalk, 1 + the cabinet */
         *got = ui.game ? sav.cab + 1 : 0;
     else if (!strcmp(what, "cab"))
@@ -598,6 +643,8 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
     (void)b;
     (void)c;
     (void)d;
+    if (striker_host_cmd(cmd, a) || balloon_host_cmd(cmd, a) || fish_host_cmd(cmd, a) || fortune_host_cmd(cmd, a) || teacups_host_cmd(cmd, a) || bumpers_host_cmd(cmd, a) || coaster_host_cmd(cmd, a))   /* the later games' own */
+        return 1;
     if (!strcmp(cmd, "answer")) {
         pitch_key(!strcmp(a, "right") ? pt.target : (pt.target + 1) % NKEYS, 1, plat_ms());
         return 1;
@@ -657,6 +704,13 @@ void app_host_ms(void)
 {
     static const uint8_t LANE_KEY[4] = {2, 9, 16, 23};   /* a white key in each lane */
     uint32_t now = plat_ms();
+    striker_host_ms(now);
+    balloon_host_ms(now);
+    fish_host_ms(now);
+    fortune_host_ms(now);
+    teacups_host_ms(now);
+    bumpers_host_ms(now);
+    coaster_host_ms(now);
     if (host_autotune && ui.game == &GAME_PITCH && pt.state == PS_ASK && now % 50u == 0u) {
         if (pt.err > 1.0f)
             pitch_enc(EN_K2, -1);
@@ -699,6 +753,11 @@ void app_host_ms(void)
             gull_key(9, 1, now);
             gull_key(9, 0, now);
         }
+        if (next >= 0 && gu.mode == GU_PRESS && now % 5u == 0u) {   /* lean on D4: more below the gap, less
+                                                                      * above, eased by how fast it moves */
+            int32_t p = 46 + (int32_t)((gu.y - (float)gu.post_gap[next]) * 1.5f + gu.vy * 0.25f);
+            app_host_key(9, 100, (uint32_t)clamp(p, 1, 100));
+        }
         if (next >= 0 && gu.mode == 1 && gu.held != gu.post_key[next]) {
             if (gu.held >= 0)
                 gull_key(gu.held, 0, now);
@@ -738,7 +797,6 @@ void app_host_ms(void)
 
 /* every screen, knob value and message as a screen reader gets them (the "speakdump" command): KIND <tab> text, for
  * fm1-reader's tools/audit.mjs. The settings are walked through and put back */
-static void sp_out(const char *kind, const char *t) { printf("%s\t%s\n", kind, t); }
 void app_speak_dump(void)
 {
     static const char *const MSG[] = {"LOOK TO, TREBLE'S GOING", "STAND", "STAND, STRUCK 87%", "THAT'S ALL",
@@ -887,6 +945,13 @@ void app_speak_dump(void)
         sp_out("SCREEN", sp_buf);
     }
     ec.state = ES_STAND;
+    striker_speak_dump();
+    balloon_speak_dump();
+    fish_speak_dump();
+    fortune_speak_dump();
+    teacups_speak_dump();
+    bumpers_speak_dump();
+    coaster_speak_dump();
     for (i = 1; i <= CL_LEVELS; i++) {   /* Claw: each level standing; playing, over */
         char lv[24];
         sav.claw.level = (uint8_t)i;
