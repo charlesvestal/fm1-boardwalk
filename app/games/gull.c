@@ -9,8 +9,8 @@
  * the posts is a note: it chimes as the posts come on, and you fly through by playing it. Level 1 shows the gap's note
  * on its post; level 2 is by ear.
  *
- * PRESS: hold one of the lit middle keys and lean on it: harder climbs, easing off sinks; a sharp strike leaps
- * (velocity and pressure from the keys, lib/touch).
+ * PRESS: hold one of the lit middle keys and lean on it: harder climbs, easing off sinks (pressure from the keys,
+ * lib/touch).
  *
  * Into a post or the sea and it is over; scored on the posts passed, faster as it goes. K2 the level. PLAY starts.
  * Part of the unity build. */
@@ -129,13 +129,13 @@ static void gull_key(int k, int down, uint32_t ms)
         snd_unlock();
         return;
     }
-    if (gu.mode == GU_PRESS) {           /* a strike: a leap as hard as it landed, and a note for the height */
+    if (gu.mode == GU_PRESS) {           /* a pad key down: a note for the height (the lift is its pressure, below;
+                                          * velocity is not steady enough to steer by) */
         if (k < GU_PAD_LO || k > GU_PAD_HI)
             return;
-        gu.vy -= (float)touch_vel((uint32_t)k) * 1.1f;
         gu.flap_ms = ms;
         snd_lock();
-        bw_note(flap_note(), 70 + touch_vel((uint32_t)k) / 3, BW_PLUCK);
+        bw_note(flap_note(), 90, BW_PLUCK);
         snd_unlock();
         return;
     }
@@ -324,7 +324,6 @@ static void gull_draw(uint32_t now)
             if (sav.gull.mode == GU_PRESS) {
                 cv_text(24, 92, &FONT_XS, "HOLD A LIT KEY AND LEAN ON IT:", G_PLANK2);
                 cv_text(24, 106, &FONT_XS, "HARDER CLIMBS, EASING OFF SINKS.", G_PLANK2);
-                cv_text(24, 120, &FONT_XS, "A SHARP STRIKE LEAPS.", G_PLANK2);
             } else if (sav.gull.mode == GU_SING) {
                 cv_text(24, 66, &FONT_XS, "K2 LEVEL", G_PLANK2);
                 cv_text(104, 64, &FONT_B, sav.gull.level == 1 ? "NOTES SHOWN" : "BY EAR", G_INK);
