@@ -62,9 +62,9 @@ expect night 1
 tap HOME
 wait 400
 tap OCT+
-wait 600
+wait 6000
+expect spit 0
 shot night.png
-wait 3000
 reboot
 wait 800
 expect owned 8196

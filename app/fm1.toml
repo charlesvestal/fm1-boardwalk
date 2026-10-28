@@ -1,5 +1,5 @@
 # Boardwalk's build settings (fm1-base's tools/build.py: ./build.sh)
-name = "BOARDWALK"             # the build's files: boardwalk.fwsc, boardwalk-X.Y.fwsc
+name = "Boardwalk"             # the build's files: boardwalk.fwsc, boardwalk-X.Y.fwsc
 id_prefix = "FM-1_12"          # package identity: dev FM-1_1200, releases FM-1_12XXYYZZ
 usb_manufacturer = "Boardwalk"
 usb_product = "Boardwalk FM-1"
