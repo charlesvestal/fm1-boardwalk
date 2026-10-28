@@ -132,3 +132,50 @@ static void draw_bell(int32_t cx, int32_t cy, float ang, float s, uint16_t body,
     }
     cv_rect(cx - 3, cy - 3, 6, 5, G_WHEEL);   /* the headstock */
 }
+
+/* the FM-1's keys, F3..G5, across the screen at y (h tall): white keys 15 px wide, the black ones over them. Each
+ * key's colour from col(k) (0: as it is) */
+static void keyboard(int32_t y, int32_t h, uint16_t (*col)(int k))
+{
+    static const uint8_t WK[16] = PLAT_WHITE_KEYS, BK[11] = PLAT_BLACK_KEYS;
+    static const uint8_t AT[11] = {0, 1, 2, 4, 5, 7, 8, 9, 11, 12, 14};   /* the white key each black one follows */
+    int i;
+    cv_rect(0, y - 1, 240, h + 1, G_MUTE);   /* the bed the keys sit in: their gaps */
+    for (i = 0; i < 16; i++) {
+        uint16_t c = col ? col(WK[i]) : 0;
+        cv_rect(i * 15, y, 14, h, c ? c : G_PAPER);
+    }
+    for (i = 0; i < 11; i++) {
+        uint16_t c = col ? col(BK[i]) : 0;
+        cv_rect(AT[i] * 15 + 10, y, 9, h * 3 / 5, c ? c : G_INK);
+    }
+}
+
+static int key_x(int k)                  /* a key's middle on that keyboard */
+{
+    static const uint8_t WK[16] = PLAT_WHITE_KEYS, BK[11] = PLAT_BLACK_KEYS;
+    static const uint8_t AT[11] = {0, 1, 2, 4, 5, 7, 8, 9, 11, 12, 14};
+    int i;
+    for (i = 0; i < 16; i++)
+        if (WK[i] == k)
+            return i * 15 + 7;
+    for (i = 0; i < 11; i++)
+        if (BK[i] == k)
+            return AT[i] * 15 + 14;
+    return 0;
+}
+
+static void note_text(int note, char *t)  /* "C#4" */
+{
+    static const char *const N[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
+    t[0] = 0;
+    text_cat(t, N[note % 12]);
+    int_text(note / 12 - 1, t + (N[note % 12][1] ? 2 : 1));
+}
+
+static uint32_t rnd_state = 0x1234567u;  /* the games' dice */
+static uint32_t rnd(uint32_t n)
+{
+    rnd_state = rnd_state * 1664525u + 1013904223u;
+    return n ? (rnd_state >> 8) % n : 0;
+}

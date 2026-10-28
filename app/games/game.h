@@ -18,4 +18,9 @@ typedef struct {
                                                                                     * drawn on the canvas */
     void (*best)(char *buf);             /* "BEST 94%", or "" */
     uint32_t (*keys_lit)(void);          /* the keys to light */
+    const uint8_t *tune;                 /* its attract tune on the boardwalk: MIDI notes, 0 a rest, looped */
+    uint8_t tune_len;
+    uint16_t tune_step;                  /* ms a step */
+    uint8_t tune_timbre;                 /* bw.h BW_* */
+    void (*where)(char *t);              /* the whole screen for a screen reader, as a sentence (ANN_MAX) */
 } game_t;

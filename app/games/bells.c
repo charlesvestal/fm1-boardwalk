@@ -116,7 +116,7 @@ static void bells_go(void)
     bl.next = 0;
     bl.t0 = plat_ms() + 600u;
     bl.ringing = 1;
-    app_say("LOOK TO", bl.mine >= 0 ? "TREBLE'S GOING" : "");
+    app_say("LOOK TO", "TREBLE'S GOING");
 }
 
 /* the tick: the tower's bells, on time (yours too, while listening) */
@@ -186,7 +186,13 @@ static void bells_button(int b, int down)
         snd_lock();
         bw_bells_damp();
         snd_unlock();
-        app_say("STAND", "");
+        if (bl.score >= 0 && bl.blows) {
+            char t[16] = "STRUCK ";
+            sp_pct(t, bl.score);
+            app_say("STAND", t);
+        } else {
+            app_say("STAND", "");
+        }
     } else {
         bells_go();
     }
@@ -202,18 +208,18 @@ static void bells_enc(int role, int steps)
         if (sav.bells.bell > method()->stage + (method()->stage & 1))
             sav.bells.bell = (uint8_t)(method()->stage + (method()->stage & 1));
         method_name(t);
-        app_say("METHOD", t);
+        app_readout("METHOD", t);
     } else if (role == EN_K2) {
         sav.bells.bell = (uint8_t)clamp((int32_t)sav.bells.bell + steps, 0, method()->stage);
         t[0] = 0;
         if (sav.bells.bell)
-            int_text(sav.bells.bell, t);
-        app_say("BELL", sav.bells.bell ? t : "LISTEN");
+            int_text(sav.bells.bell, t);   /* LISTENING alone when 0 */
+        app_readout(sav.bells.bell ? "BELL" : "LISTENING", t);
     } else if (role == EN_K3) {
         sav.bells.pace = (uint8_t)clamp((int32_t)sav.bells.pace + steps, PACE_MIN, PACE_MAX);
         int_text(sav.bells.pace * 10, t);
         text_cat(t, " MS");
-        app_say("PACE", t);
+        app_readout("PACE", t);
     } else {
         return;
     }
@@ -380,7 +386,13 @@ static void bells_frame(uint32_t now)
         judge_misses(now);
         if (bl.next >= bl.nrows * bl.bells && (int32_t)(now - bl.t0) > blow_time(bl.nrows, 0)) {
             bells_stand();               /* that's all */
-            app_say("THAT'S ALL", "");
+            if (bl.blows) {
+                char t[16] = "STRUCK ";
+                sp_pct(t, bl.score);
+                app_say("THAT'S ALL", t);
+            } else {
+                app_say("THAT'S ALL", "");
+            }
         }
     }
     bells_draw(now);
@@ -420,5 +432,57 @@ static uint32_t bells_keys_lit(void)     /* every key, on your blow */
     return blow_time(bl.my_next, my_place(bl.my_next)) - t < 80 ? (1u << NKEYS) - 1u : 0;
 }
 
+static void bells_where(char *t)         /* the screen, for a screen reader */
+{
+    char m[32];
+    method_name(m);
+    t[0] = 0;
+    if (bl.ringing) {
+        text_cat(t, "BELLS. RINGING ");
+        text_cat(t, m);
+        if (bl.mine >= 0) {
+            text_cat(t, ". YOUR BELL ");
+            sp_num(t, bl.mine + 1);
+            text_cat(t, ", ANY KEY RINGS IT");
+            if (bl.blows) {
+                int sc = (int)(100 - (100 * bl.err_sum + bl.blows * (bl.gap / 4)) / (bl.blows * (bl.gap / 2)));
+                text_cat(t, ". STRIKING ");
+                sp_pct(t, sc < 0 ? 0 : sc);
+            }
+        } else {
+            text_cat(t, ". LISTENING");
+        }
+        text_cat(t, ". PLAY STANDS.");
+        return;
+    }
+    text_cat(t, "BELLS. KNOB 1, METHOD ");
+    text_cat(t, m);
+    text_cat(t, ". KNOB 2, ");
+    if (sav.bells.bell) {
+        text_cat(t, "BELL ");
+        sp_num(t, sav.bells.bell);
+    } else {
+        text_cat(t, "LISTENING");
+    }
+    text_cat(t, ". KNOB 3, PACE ");
+    sp_num(t, sav.bells.pace * 10);
+    text_cat(t, " MS. ");
+    if (bl.score >= 0) {
+        text_cat(t, "STRUCK ");
+        sp_pct(t, bl.score);
+        text_cat(t, ". ");
+    } else if (sav.bells.best[sav.bells.method % NMETHODS_MAX]) {
+        text_cat(t, "BEST ");
+        sp_pct(t, sav.bells.best[sav.bells.method % NMETHODS_MAX]);
+        text_cat(t, ". ");
+    }
+    text_cat(t, "PLAY RINGS.");
+}
+
+/* the attract tune: rounds on six, then a pull of Plain Bob (214365), on chimes */
+static const uint8_t BELLS_TUNE[] = {83, 81, 79, 77, 76, 74, 0, 83, 81, 79, 77, 76, 74, 0,
+                                     81, 83, 77, 79, 74, 76, 0, 81, 77, 83, 74, 79, 76, 0};
+
 static const game_t GAME_BELLS = {"BELLS", RGB(232, 80, 91), bells_enter, bells_leave, bells_frame, bells_key,
-                                  bells_button, bells_enc, bells_tick, bells_attract, bells_best, bells_keys_lit};
+                                  bells_button, bells_enc, bells_tick, bells_attract, bells_best, bells_keys_lit,
+                                  BELLS_TUNE, sizeof BELLS_TUNE, 260, BW_CHIME, bells_where};

@@ -1,0 +1,38 @@
+# Pitch EAR: five right and the level goes up; three wrong and it is over, the best kept
+wait 800
+tap OCT+
+wait 400
+tap PLAY
+wait 100
+expect game 2
+tap PLAY
+wait 1500
+expect pitch_state 1
+shot ask.png
+answer right
+wait 30
+expect pitch_score 1
+shot right.png
+wait 2000
+answer right
+wait 2000
+answer right
+wait 2000
+answer right
+wait 2000
+answer right
+wait 30
+expect pitch_level 2
+wait 2000
+answer wrong
+wait 30
+expect pitch_lives 2
+shot wrong.png
+wait 3000
+answer wrong
+wait 3000
+answer wrong
+wait 2000
+expect pitch_state 3
+expect best_ear 5
+shot over.png

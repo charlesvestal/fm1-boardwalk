@@ -1,0 +1,20 @@
+# Pitch TUNE: held in tune by ear (the test's player) the duel goes on; let go, it drifts out and ends
+wait 800
+tap OCT+
+wait 400
+tap PLAY
+wait 100
+turn K1 1
+wait 50
+shot stand.png
+tap PLAY
+autotune on
+wait 15000
+expect pitch_state 1
+expect pitch_err >-3
+expect pitch_err <3
+shot tuning.png
+autotune off
+wait 60000
+expect pitch_state 3
+shot over.png

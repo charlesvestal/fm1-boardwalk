@@ -1,0 +1,43 @@
+# The screen reader: the whole screen when it asks, the cabinets as you walk, a game's screen as you step up, knob
+# values when they settle, the answers at once
+wait 800
+listen
+wait 100
+where
+said BOARDWALK. BELLS, 1 OF 3
+tap OCT+
+wait 400
+said PITCH, 2 OF 3
+tap PLAY
+wait 100
+said PITCH, EAR. KNOB 1, GAME EAR
+turn K2 1
+wait 300
+said LEVEL, EVERY KEY, ONE OCTAVE
+tap PLAY
+wait 100
+said LISTEN
+wait 1500
+answer right
+wait 50
+said RIGHT
+where
+said SCORE 1, LIVES 3
+tap HOME
+wait 100
+said BOARDWALK. PITCH, 2 OF 3
+turn K1 2
+wait 300
+said SEA, 70%
+tap OCT-
+wait 400
+tap PLAY
+wait 100
+said BELLS. KNOB 1, METHOD PLAIN BOB MINOR
+turn K1 1
+wait 300
+said METHOD, KENT TB MINOR
+tap PLAY
+wait 100
+said LOOK TO
+unsaid STAND

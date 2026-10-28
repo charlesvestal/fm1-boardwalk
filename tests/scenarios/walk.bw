@@ -1,30 +1,44 @@
-# The boardwalk: the cabinets, walking along them, a cabinet not open yet, Bells and back; the save across a reboot
+# The boardwalk: the cabinets, walking along them, each one's attract tune, the sea and tunes knobs, stepping into
+# a cabinet and back; the save across a reboot
 wait 800
 expect game 0
 expect cab 0
+expect tune_cab 0
 shot boardwalk.png
 tap OCT+
-wait 400
+wait 100
 expect cab 1
+expect tune_cab -1
+wait 400
+expect tune_cab 1
 shot pitch.png
 tap PLAY
-wait 100
+wait 200
+expect game 2
+shot pitch_stand.png
+tap HOME
+wait 200
 expect game 0
 tap OCT+
 tap OCT+
 wait 400
 expect cab 2
+shot tiles.png
 turn SELECT -2
 wait 400
 expect cab 0
+turn K1 -4
+wait 50
+expect surf 40
+shot sea.png
 tap PLAY
 wait 200
 expect game 1
+expect tune_cab -1
 shot bells.png
 tap HOME
-wait 200
-expect game 0
 wait 2000
 reboot
 wait 800
 expect cab 0
+expect surf 40

@@ -15,7 +15,7 @@
 /* ---------------------------------------------------------------- commands --- */
 /* one word each: op in the top byte, then two bytes of arguments. One producer (the main loop), one consumer
  * (the render) */
-enum { C_BELL = 1, C_PAN, C_BLIP, C_SURF, C_DAMP };
+enum { C_BELL = 1, C_PAN, C_NOTE, C_SURF, C_DAMP, C_ATTRACT, C_TONE, C_GULL };
 #define CQ 64u
 static uint32_t cq[CQ];
 static volatile uint32_t cq_w, cq_r, cq_drop;
@@ -33,8 +33,20 @@ static void post(uint32_t op, uint32_t a, uint32_t b, uint32_t c)
 }
 void bw_bell(int bell, int note, int vel) { post(C_BELL, (uint32_t)bell, (uint32_t)note, (uint32_t)vel); }
 void bw_bell_pan(int bell, int pan) { post(C_PAN, (uint32_t)bell, (uint32_t)(pan + 64), 0); }
-void bw_blip(int note, int vel) { post(C_BLIP, (uint32_t)note, (uint32_t)vel, 0); }
+void bw_note(int note, int vel, int timbre) { post(C_NOTE, (uint32_t)note, (uint32_t)vel, (uint32_t)timbre); }
+void bw_attract_note(int note, int vel, int timbre)
+{
+    post(C_NOTE, (uint32_t)note, (uint32_t)vel, (uint32_t)timbre | 0x80u);
+}
+void bw_attract(int level) { post(C_ATTRACT, (uint32_t)level, 0, 0); }
+void bw_blip(int note, int vel) { bw_note(note, vel, BW_PLUCK); }
+void bw_tone(int slot, int cents, int level)
+{
+    post(C_TONE, (uint32_t)(slot & 1) << 7 | (uint32_t)(level > 100 ? 100 : level < 0 ? 0 : level),
+         (uint32_t)cents >> 8, (uint32_t)cents);
+}
 void bw_surf(int level) { post(C_SURF, (uint32_t)level, 0, 0); }
+void bw_gull(void) { post(C_GULL, 0, 0, 0); }
 void bw_bells_damp(void) { post(C_DAMP, 0, 0, 0); }
 uint32_t bw_cmds_dropped(void) { return cq_drop; }
 
@@ -99,25 +111,69 @@ static void bell_strike(int i, int note, int vel)
     b->level = g;
 }
 
-/* ------------------------------------------------------------------- blips --- */
+/* ------------------------------------------------------------------- notes --- */
+/* two-operator FM: a modulator at a ratio of the note, its index falling away faster than the note itself. The
+ * timbres: a pure sine (Pitch's first levels), a pluck, an electric piano, a chime, a bass, and the clunk of a missed
+ * tile (a low, dull thud) */
 typedef struct {
-    float ph, mph, inc, minc, env, idx;
-} blip_t;
-static blip_t blip[BW_BLIPS];
-static int blip_next;
+    float ratio, idx, idx_decay, decay, amp;
+    int8_t octave;                       /* heard this many octaves off the note */
+} timbre_t;
+static const timbre_t TIMBRE[BW_NTIMBRES] = {
+    {1.0f, 0.0f, 1.0f, 0.99996f, 0.30f, 0},         /* sine: ~0.6 s */
+    {2.0f, 2.5f, 0.9997f, 0.99985f, 0.35f, 0},      /* pluck */
+    {1.0f, 1.6f, 0.99985f, 0.99994f, 0.32f, 0},     /* piano */
+    {3.5f, 1.3f, 0.99992f, 0.99997f, 0.22f, 0},     /* chime */
+    {1.0f, 1.1f, 0.9999f, 0.99993f, 0.40f, -1},     /* bass */
+    {1.41f, 3.0f, 0.998f, 0.9993f, 0.40f, -2},      /* clunk */
+};
+typedef struct {
+    float ph, mph, inc, minc, env, idx, idx_decay, decay;
+    uint8_t attract;
+} note_t;
+static note_t notev[BW_NOTES];
+static int note_next;
+static float attract_gain, attract_target;
 
-static void blip_start(int note, int vel)
+static void note_start(int note, int vel, int timbre, int attract)
 {
-    blip_t *b = &blip[blip_next];
-    float f = 440.0f * fm_exp2f((float)(note - 69) / 12.0f);
-    blip_next = (blip_next + 1) % BW_BLIPS;
-    b->inc = f / (float)BW_RATE;
-    b->minc = 2.0f * b->inc;
-    b->env = 0.35f * (float)vel / 127.0f;
-    b->idx = 2.5f;
-    b->ph = b->mph = 0.0f;
+    const timbre_t *t = &TIMBRE[timbre < BW_NTIMBRES ? timbre : BW_PLUCK];
+    note_t *v = &notev[note_next];
+    int i;
+    float f;
+    for (i = 0; i < BW_NOTES; i++)       /* a voice that has died away, else the oldest */
+        if (notev[(note_next + i) % BW_NOTES].env < 1e-4f) {
+            v = &notev[(note_next + i) % BW_NOTES];
+            break;
+        }
+    note_next = (int)(v - notev + 1) % BW_NOTES;
+    f = 440.0f * fm_exp2f((float)(note + 12 * t->octave - 69) / 12.0f);
+    v->inc = f / (float)BW_RATE;
+    v->minc = t->ratio * v->inc;
+    v->env = t->amp * (float)vel / 127.0f;
+    v->idx = t->idx;
+    v->idx_decay = t->idx_decay;
+    v->decay = t->decay;
+    v->ph = v->mph = 0.0f;
+    v->attract = (uint8_t)attract;
 }
 
+/* ------------------------------------------------------------------- tones --- */
+/* sustained: the fundamental with a little of the second and third harmonics, so two tones close together beat
+ * clearly. Pitch and level glide (no clicks, no steps) */
+typedef struct {
+    float ph, inc, inc_target, level, level_target;
+} tone_t;
+static tone_t tone[BW_TONES];
+
+/* -------------------------------------------------------------------- gull --- */
+/* a herring gull's call: two or three falling cries, each a fast-warbling sine sweeping down */
+static struct {
+    float ph, f, env, wob;
+    int calls, left;                     /* cries to come; samples left in this one */
+} gull;
+static uint32_t gull_wait = 44100u * 6u;   /* samples to the next chance of a gull */
+static uint8_t gull_now;                   /* bw_gull: one calls at the next block */
 /* -------------------------------------------------------------------- surf --- */
 /* white noise through two one-pole lowpasses, its level swelling on a slow sine (a wave every ~7 s), and its
  * brightness with it: the wave breaks bright and draws back dark */
@@ -249,8 +305,11 @@ void bw_panic(void)
             bell[i].re[p] = bell[i].im[p] = 0.0f;
         bell[i].level = 0.0f;
     }
-    for (i = 0; i < BW_BLIPS; i++)
-        blip[i].env = 0.0f;
+    for (i = 0; i < BW_NOTES; i++)
+        notev[i].env = 0.0f;
+    for (i = 0; i < BW_TONES; i++)
+        tone[i].level = tone[i].level_target = 0.0f;
+    gull.calls = gull.left = 0;
     surf_target = surf_level = 0.0f;
 }
 
@@ -268,8 +327,19 @@ static void commands(void)
             float x = ((float)b - 64.0f) / 128.0f + 0.5f;   /* 0..1, equal power */
             bell[a].pan_l = fm_cosf(x * 1.5707963f);
             bell[a].pan_r = fm_sinf(x * 1.5707963f);
-        } else if (op == C_BLIP && a < 128u)
-            blip_start((int)a, (int)(b ? b : 100u));
+        } else if (op == C_NOTE && a < 128u)
+            note_start((int)a, (int)(b ? b : 100u), (int)(v & 0x7Fu), (int)(v >> 7));
+        else if (op == C_ATTRACT)
+            attract_target = (float)(a > 100u ? 100u : a) * 0.01f;
+        else if (op == C_TONE) {
+            tone_t *t = &tone[a >> 7];
+            float cents = (float)(b << 8 | v);
+            t->inc_target = 440.0f * fm_exp2f((cents - 6900.0f) / 1200.0f) / (float)BW_RATE;
+            if (t->level < 1e-4f)        /* from silence: no glide in pitch */
+                t->inc = t->inc_target;
+            t->level_target = (float)(a & 0x7Fu) * 0.0025f;
+        } else if (op == C_GULL)
+            gull_now = 1;
         else if (op == C_SURF)
             surf_target = (float)(a > 100u ? 100u : a) * 0.01f;
         else if (op == C_DAMP)
@@ -299,6 +369,19 @@ void bw_render(int32_t *lr, uint32_t n, uint32_t gain_q12)
     swell *= swell;
     bright = 0.03f + 0.10f * swell;
     surf_level += (surf_target - surf_level) * 0.02f;
+    attract_gain += (attract_target - attract_gain) * 0.12f;   /* ~0.2 s */
+    if (gull_wait > n) {                 /* a gull every 7..22 s while the sea is up */
+        gull_wait -= n;
+    } else {
+        rng = rng * 1664525u + 1013904223u;
+        gull_wait = 44100u * (7u + (rng >> 28));
+        gull_now |= surf_level > 0.15f;
+    }
+    if (gull_now && !gull.calls) {
+        gull_now = 0;
+        gull.calls = 2 + (int)(rng >> 31);
+        gull.left = 0;
+    }
     for (i = 0; i < BW_BELLS; i++) {     /* the level estimate, for the screen: the nominal's */
         bell_t *b = &bell[i];
         b->level = fm_flush(fm_sqrtf(b->re[4] * b->re[4] + b->im[4] * b->im[4]) / (PART_AMP[4] + 1e-6f));
@@ -320,22 +403,63 @@ void bw_render(int32_t *lr, uint32_t n, uint32_t gain_q12)
             r += sum * b->pan_r;
         }
         wet += 0.35f * (l + r);
-        for (i = 0; i < BW_BLIPS; i++) {
-            blip_t *b = &blip[i];
+        for (i = 0; i < BW_NOTES; i++) {
+            note_t *v = &notev[i];
             float m;
-            if (b->env < 1e-5f)
+            if (v->env < 1e-5f)
                 continue;
-            b->mph += b->minc;
-            b->mph -= (float)(int)b->mph;
-            b->ph += b->inc;
-            b->ph -= (float)(int)b->ph;
-            m = fm_sin_turns(b->mph) * b->idx;
-            s = fm_sin_turns(b->ph + m * 0.159155f) * b->env;
-            b->env *= 0.99985f;
-            b->idx *= 0.9997f;
+            v->mph += v->minc;
+            v->mph -= (float)(int)v->mph;
+            v->ph += v->inc;
+            v->ph -= (float)(int)v->ph;
+            m = fm_sin_turns(v->mph) * v->idx;
+            s = fm_sin_turns(v->ph + m * 0.159155f) * v->env;
+            if (v->attract)
+                s *= attract_gain;
+            v->env *= v->decay;
+            v->idx *= v->idx_decay;
             l += s;
             r += s;
             wet += 0.25f * s;
+        }
+        for (i = 0; i < BW_TONES; i++) {
+            tone_t *t = &tone[i];
+            float p;
+            if (t->level < 1e-5f && t->level_target == 0.0f)
+                continue;
+            t->level += (t->level_target - t->level) * 0.0005f;
+            t->inc += (t->inc_target - t->inc) * 0.002f;
+            t->ph += t->inc;
+            t->ph -= (float)(int)t->ph;
+            p = t->ph;
+            s = (fm_sin_turns(p) + 0.3f * fm_sin_turns(2.0f * p) + 0.15f * fm_sin_turns(3.0f * p)) * t->level;
+            l += s;
+            r += s;
+            wet += 0.1f * s;
+        }
+        if (gull.calls) {
+            if (gull.left <= 0) {        /* the next cry, after a breath */
+                gull.left = 44100 * 26 / 100;
+                gull.f = 2500.0f;
+                gull.env = 0.0f;
+            }
+            gull.left--;
+            if (gull.left > 44100 * 6 / 100) {
+                gull.env += (0.05f * (surf_level > 0.3f ? surf_level : 0.3f) - gull.env) * 0.004f;
+                gull.f *= 0.99996f;
+            } else {
+                gull.env *= 0.999f;
+            }
+            gull.wob += 32.0f / (float)BW_RATE;
+            gull.wob -= (float)(int)gull.wob;
+            gull.ph += (gull.f + 90.0f * fm_sin_turns(gull.wob)) / (float)BW_RATE;
+            gull.ph -= (float)(int)gull.ph;
+            s = fm_sin_turns(gull.ph) * gull.env;
+            l += 0.7f * s;
+            r += s;
+            wet += 0.6f * s;
+            if (gull.left == 0)
+                gull.calls--;
         }
         if (surf_level > 1e-4f) {
             surf_lp1 += bright * (noise() - surf_lp1);

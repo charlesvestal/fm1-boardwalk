@@ -103,6 +103,34 @@ int main(int argc, char **argv)
     bw_blip(72, 100);
     p = run_ms(100);
     CHECK(p > 0.05f, "a blip: %.3f", (double)p);
+    for (i = 0; i < BW_NTIMBRES; i++) {  /* every timbre sounds and dies away */
+        bw_note(60, 100, i);
+        p = run_ms(100);
+        CHECK(p > 0.02f && p < 0.99f, "timbre %d: %.3f", i, (double)p);
+        run_ms(3000);
+    }
+    run_ms(4000);
+    CHECK(run_ms(100) < 0.002f, "the notes died away");
+    bw_attract(0);                       /* an attract note at level 0: silent */
+    run_ms(300);
+    bw_attract_note(72, 120, BW_CHIME);
+    CHECK(run_ms(200) < 0.002f, "attract at 0 is silent");
+    bw_attract(100);
+    bw_attract_note(72, 120, BW_CHIME);
+    CHECK(run_ms(200) > 0.02f, "attract at 100 sounds");
+    run_ms(6000);
+    bw_tone(0, 6900, 60);                /* two tones 3 cents apart, then off */
+    bw_tone(1, 6903, 60);
+    p = run_ms(1000);
+    CHECK(p > 0.05f && p < 0.99f, "two tones: %.3f", (double)p);
+    bw_tone(0, 6900, 0);
+    bw_tone(1, 6903, 0);
+    run_ms(5000);
+    CHECK(run_ms(100) < 0.002f, "the tones stop");
+    bw_gull();
+    p = run_ms(1000);
+    CHECK(p > 0.01f, "a gull: %.3f", (double)p);
+    run_ms(4000);
     bw_surf(80);
     run_ms(4000);
     p = run_ms(4000);

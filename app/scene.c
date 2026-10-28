@@ -104,7 +104,7 @@ static void cabinet(const game_t *g, int32_t cx, int32_t s, int dim, uint32_t ms
 }
 
 /* the whole scene; pos: the row's position in cabinets x 256 (slides between them) */
-static void scene_draw(const game_t *const *games, int n, int32_t pos, uint32_t ms)
+static void scene_draw(const game_t *const *games, int n, int32_t pos, uint32_t ms, const char *hud)
 {
     int32_t y0, i;
     char t[16];
@@ -129,12 +129,16 @@ static void scene_draw(const game_t *const *games, int n, int32_t pos, uint32_t 
                 cabinet(games[i], 120 + d * CAB_STEP / 256, 256 - (d < 0 ? -d : d) * (256 - SMALL) / 256, 0, ms);
         }
         cv_text(6, 229, &FONT_XS, "< OCT-", G_INK);
-        t[0] = (char)('1' + (pos + 128) / 256);
-        t[1] = 0;
-        cv_text(112, 229, &FONT_XS, t, G_INK);
-        cv_text(124, 229, &FONT_XS, "/", G_INK);
-        t[0] = (char)('0' + n);
-        cv_text(132, 229, &FONT_XS, t, G_INK);
+        if (hud) {                       /* a knob just turned: the sea, the tunes */
+            text_mid(120, 229, &FONT_XS, hud, G_INK);
+        } else {
+            t[0] = (char)('1' + (pos + 128) / 256);
+            t[1] = 0;
+            cv_text(112, 229, &FONT_XS, t, G_INK);
+            cv_text(124, 229, &FONT_XS, "/", G_INK);
+            t[0] = (char)('0' + n);
+            cv_text(132, 229, &FONT_XS, t, G_INK);
+        }
         cv_text(234 - text_w(&FONT_XS, "OCT+ >"), 229, &FONT_XS, "OCT+ >", G_INK);
         band_send(y0);
     }

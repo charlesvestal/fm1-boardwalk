@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: MPL-2.0
 # Copyright (C) 2026 Charles Vestal
 # Boardwalk's tests: the ringing core (tests/host/ringing_test.c), the sound engine (tests/host/bw_test.c: writes
-# app/build/tests/rounds.wav), the whole app in fm1-base's simulator (tests/scenarios/*.bw), and the update path
-# against Boardwalk's package (./build.sh first). Screenshots and audio in app/build/scenarios/. fm1-base's own
+# app/build/tests/rounds.wav), the whole app in fm1-base's simulator (tests/scenarios/*.bw), the browser build, the
+# screen reader's words (fm1-reader's audit), and the update path against Boardwalk's package (./build.sh first). Screenshots and audio in app/build/scenarios/. fm1-base's own
 # tests: base/tests/run_tests.sh.
 #   tests/run_tests.sh
 set -u
@@ -38,10 +38,30 @@ else
     echo "  skip update path (no $B/boardwalk.fwsc: ./build.sh)"
 fi
 run host-build sh build.sh --host
+if command -v emcc >/dev/null 2>&1 && command -v node >/dev/null 2>&1; then
+    run emu sh -c "sh build.sh --web && node tests/host/emu_test.mjs $B/emu/app.wasm"
+else
+    echo "  skip emu (no emcc)"
+fi
 for s in tests/scenarios/*.bw; do
     n=$(basename "$s" .bw)
     mkdir -p "$B/scenarios/$n"
     run "scenario-$n" $B/host/boardwalk_host "$s" "$B/scenarios/$n"
 done
+# the screen reader's words (fm1-reader's audit, beside this repo): every screen in the dump, every message the
+# scenarios sent
+if command -v node >/dev/null 2>&1 && [ -f ../fm1-reader/tools/audit.mjs ]; then
+    SR=$B/sr
+    mkdir -p $SR
+    printf 'wait 500\nspeakdump\n' > $SR/dump.bw
+    run reader-audit sh -c "$B/host/boardwalk_host $SR/dump.bw $SR | grep -v '^host' | sort -u > $SR/dump.tsv && \
+        rm -f $SR/said.tsv && for f in tests/scenarios/*.bw; do n=\$(basename \$f .bw); \
+        FM1B_SAID_LOG=\$PWD/$SR/said.tsv $B/host/boardwalk_host \$f $B/scenarios/\$n >/dev/null; done; \
+        sort -u $SR/said.tsv | cat $SR/dump.tsv - > $SR/all.tsv && \
+        node ../fm1-reader/tools/audit.mjs $SR/all.tsv --words app/web/words/\$(grep -o '[0-9a-f]*\.json' $B/gen/ann_words.h) \
+        --allow app/words.allow | tee /dev/stderr | grep -q ' 0 errors, 0 warnings'"
+else
+    echo "  skip reader-audit (no node, or no ../fm1-reader)"
+fi
 [ $FAIL -eq 0 ] && echo "all tests passed" || echo "TESTS FAILED"
 exit $FAIL

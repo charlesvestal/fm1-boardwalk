@@ -25,7 +25,8 @@ typedef struct {
     uint32_t magic, format;
     uint8_t cab;                         /* the cabinet in front of you */
     uint8_t surf;                        /* the sea's level, 0..100 */
-    uint8_t rsv0[2];
+    uint8_t tunes;                       /* the attract tunes' level, 0..100 */
+    uint8_t rsv0;
     struct {
         uint8_t method;                  /* RING_METHODS */
         uint8_t bell;                    /* yours: 0 listen, 1..n */
@@ -33,7 +34,18 @@ typedef struct {
         uint8_t rsv;
         uint8_t best[NMETHODS_MAX];      /* the best striking per method, %, 0 = not rung yet */
     } bells;
-    uint8_t rsv[64];                     /* room for the games to come */
+    struct {
+        uint8_t mode;                    /* 0 ear (perfect pitch), 1 tune (the tuning duel) */
+        uint8_t level;                   /* the level an ear game starts at, 1.. */
+        uint16_t best_ear;               /* notes named in one game */
+        uint16_t best_tune;              /* tenths of a second kept in tune */
+        uint8_t rsv[2];
+    } pitch;
+    struct {
+        uint8_t song, level, tempo, rsv; /* level 0 easy, 1 normal, 2 hard; tempo in % */
+        uint8_t best[16];                /* % of the notes played, per song */
+    } tiles;
+    uint8_t rsv[36];                     /* room to grow */
 } save_t;
 extern save_t sav;
 void save_dirty(void);                   /* saved at the next quiet moment */
@@ -47,5 +59,12 @@ void app_frame(void);
 void app_input_only(void);
 void app_say(const char *a, const char *b);
 
+/* the host simulator: checks, and a player for the tests (app.c) */
 #define APP_HOST_EXPECT
 int app_expect(const char *what, int *got);
+#define APP_HOST_CMD
+int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, const char *d);
+#define APP_HOST_MS
+void app_host_ms(void);
+#define APP_HOST_SPEAKDUMP
+void app_speak_dump(void);

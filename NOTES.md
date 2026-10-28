@@ -10,18 +10,20 @@ boardwalk menu runs, Pitch and Tiles are cabinets with attract screens but no ga
 - **Built on fm1-base** (submodule `base/`, at fm1-base `main` 4587fda), laid out as AMB-1 / CTL-1: `./build.sh`
   (`PYTHON=/opt/homebrew/bin/python3.14`, podman running), `sh tests/run_tests.sh`. Identity **FM-1_12**
   (dev FM-1_1200), USB "Boardwalk FM-1". No Bluetooth, no USB audio out.
-- Image 91 KB; RAM 28.7 of 96 KB; pool 206 of 336 KB (the plate ~139 KB, the canvas 69 KB).
-- Not yet on the hardware: the render's CPU, the frame rate of full-screen redraws, and how the bells sound
-  through the FM-1's speaker are all still to read on the device.
-- Tests: the ringing core (all ten methods' plain courses true and at their known lengths), the engine
-  (`app/build/tests/rounds.wav`: a plain course of Plain Bob Minor to listen to), scenarios for the boardwalk,
-  listening, and striking on time (90 %+, the best kept across a reboot).
-
-Mockups in `mockups/` (open in a browser):
-- `cabinets.html`: the opening screen, cabinets in front of the boardwalk; ← → slide the row. **Golden hour (B) was picked.**
-- `look.html`: first ideas for the game-select menu.
-- `ring-screen.html`: three ways to show Bells' Ring screen (blue line, tower, timeline).
-- `ring-screen-v2.html`: the chosen mix, **layout A**: six swinging tower bells across the top, the blue line underneath.
+- All three cabinets open: **Bells**, **Pitch** (EAR and TUNE), **Tiles** (five songs). The boardwalk plays each
+  cabinet's attract tune quietly over the sea, fading as the row moves; K1 the sea, K2 the tunes. Gulls call.
+- Screen reader: every screen on WHERE, knob values as they settle, answers at once; fm1-reader's audit is clean
+  (`app/words.tsv`, `app/words.allow`, `app/web/words/`). The words link points at
+  charlesvestal.github.io/fm1-boardwalk/words/, which does not exist yet (the repo is private).
+- Browser emulator builds (`./build.sh --web`), tested in Node.
+- Image 108 KB; RAM 23.5 of 96 KB; pool 206 of 336 KB (the plate ~139 KB, the canvas 69 KB).
+- **Not yet on the hardware**: the render's CPU, the frame rate of full-screen redraws, how the bells, tones and
+  gulls sound through the speaker, whether the bass is audible on it, and whether Tiles' timing feels right
+  (input is polled between frames; key times in ms from plat_ms).
+- Tests (14): the ringing core (ten plain courses true and at their lengths), the engine (every timbre, the
+  attract group, the tones, a gull; `app/build/tests/rounds.wav` to listen to), scenarios (the boardwalk, Bells
+  listening and striking, Pitch EAR and TUNE, Tiles played whole and half, the reader), the emulator, the audit.
+  A test player (`answer`, `autotune`, `autotiles` in the scenarios) plays Pitch and Tiles.
 
 ## Decided
 
@@ -79,15 +81,36 @@ typedef struct {
 The sound engine takes commands from the main loop and from the tick; the main loop's are posted with the tick
 locked out (`snd_lock`), so the queue keeps one producer at a time.
 
-- **Controls:** in the menu, OCT− / OCT+ (or turning SELECT) scroll the cabinets and PLAY enters a game. In a game, HOME goes back to the boardwalk and everything else belongs to the game. MASTER is always volume. fm1-base's safety stays (REC held at power-on = update mode).
-- **Sound engine `bw`** (audio interrupt): commands (`bw_bell(slot, note, vel)`, `bw_bell_pan`, `bw_blip(note, vel)`, `bw_surf(level)`, `bw_bells_damp`) drained at the start of each block. Bells: 8 slots, 7 partials each (hum, prime, tierce, quint, nominal, superquint, octave nominal) as decaying resonators. Blip: 4 FM plucks. Surf: noise with a 7 s swell. One Dattorro plate (AMB-1's). Not built yet: gull chirps, the attract tunes and their crossfade.
+- **Controls:** in the menu, OCT− / OCT+ (or turning SELECT) scroll the cabinets and PLAY enters a game; K1 the sea, K2 the attract tunes' level. In a game, HOME goes back to the boardwalk and everything else belongs to the game. MASTER is always volume. fm1-base's safety stays (REC held at power-on = update mode).
+- **Sound engine `bw`** (audio interrupt): commands (`bw_bell(slot, note, vel)`, `bw_bell_pan`, `bw_blip(note, vel)`, `bw_surf(level)`, `bw_bells_damp`) drained at the start of each block. Bells: 8 slots, 7 partials each (hum, prime, tierce, quint, nominal, superquint, octave nominal) as decaying resonators. Blip: 4 FM plucks. Surf: noise with a 7 s swell. One Dattorro plate (AMB-1's). The attract tunes are their own group of notes with a level (`bw_attract`), faded out as the row moves and in again a quarter second after it stops. Notes come in six timbres (sine, pluck, piano, chime, bass, clunk); two sustained tones for Pitch's duel; a gull now and then while the sea is up.
 - **Drawing:** two 240 × 120 bands per frame on gfx.c's canvas, ~30 fps (to check on the device).
 - **Saving:** one object (`save_t`): format, the cabinet in front, the surf level, Bells' method / bell / pace and its best per method, room for the others. Saved 1.5 s after a change, never while bells ring (a flash write holds the sound).
 - **Identity:** FM-1_12. Own USB name.
 
 Bells as built: K1 method (ten: Plain Hunt, Plain Bob and Grandsire Doubles; Plain Hunt, Plain Bob, Kent TB and Cambridge S Minor; Plain Hunt, Plain Bob and Cambridge S Major), K2 your bell (LISTEN or 1..n), K3 pace (160–320 ms a blow). PLAY rings 4 rows of rounds, the plain course, 2 rows of rounds, or stands. Any key strikes your bell; a blow a gap late is a miss. The bells' notes: the top of a major scale down to the tenor.
 
-Next: hear and see it on the FM-1 (CPU, frame rate, the bells' sound); then the Pitch cabinet; the menu's attract tunes; the screen reader's words for every screen (words.tsv has the first ones).
+## Pitch (built 2026-10-28)
+
+- **EAR**: a note plays, you press its key; 3 lives, 8 s to answer, 5 right in a row goes up a level. Levels: 1 white
+  keys C4–C5 with a C4 reference first (sine); 2 every key C4–C5 (sine, reference); 3 no reference (piano); 4 the
+  whole keyboard (piano); 5 chimes; 6 any timbre. PLAY hears it again. Best: notes named in one game.
+- **TUNE**: a reference tone and a second one that drifts (a random walk in its speed, faster as time goes on);
+  K1 turns it 2 cents a detent, K2 half a cent. Within 4 cents counts as in tune; past 25 cents it is over. The
+  screen shows two forks and the time in tune, never the error. Best: tenths of a second in tune.
+- K1 the game, K2 EAR's starting level.
+
+## Tiles (built 2026-10-28)
+
+- Songs written out in `games/tiles.c` (public domain): Ode to Joy, Twinkle Twinkle, Frere Jacques, Greensleeves,
+  Fur Elise (the opening), each with a simple bass line. MIDI loading is still to come.
+- Lanes: the white keys in fours (F–B, C–F, G–C, D–G); any key in a lane counts. Tiles: HARD one per note, NORMAL at
+  most one a beat, EASY one per two beats; a tile carries the notes until the next. Its lane follows the contour.
+- Windows: 60 ms perfect, 150 ms good; a press with no tile near is a clunk and breaks the combo. The tile's first
+  note sounds when hit (early too); its other notes at their times. The bass and a count-in from the tick.
+- K1 song, K2 level, K3 tempo (60–140 %). Best: % of notes played, per song.
+
+Next: on the FM-1 (CPU, frame rate, the sound, Tiles' feel); then MIDI songs for Tiles (the user's own, as the
+notes above plan), and Bells' handbells and conducting.
 
 ## Game ideas (2026-10-09)
 
