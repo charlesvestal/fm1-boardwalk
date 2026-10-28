@@ -9,8 +9,7 @@
  * the posts is a note: it chimes as the posts come on, and you fly through by playing it. Level 1 shows the gap's note
  * on its post; level 2 is by ear.
  *
- * PRESS: hold one of the lit middle keys and lean on it: harder climbs, easing off sinks (pressure from the keys,
- * lib/touch).
+ * HOLD: hold any key and the gull climbs; let go and it sinks (the old helicopter game's way).
  *
  * Into a post or the sea and it is over; scored on the posts passed, faster as it goes. K2 the level. PLAY starts.
  * Part of the unity build. */
@@ -39,19 +38,17 @@ static struct {
 
 #define GU_FLAP 0
 #define GU_SING 1
-#define GU_PRESS 2
-#define GU_PAD_LO 7                      /* PRESS: the pad, the white keys from C4 to C5 (all sensed) */
-#define GU_PAD_HI 19
+#define GU_HOLD 2
 
 static int gu_half(void)                 /* half a gap */
 {
-    return gu.mode == GU_SING ? 20 : gu.mode == GU_PRESS ? clamp(40 - gu.score / 4, 30, 40) :
+    return gu.mode == GU_SING ? 20 : gu.mode == GU_HOLD ? clamp(40 - gu.score / 4, 30, 40) :
                                                           clamp(36 - gu.score / 4, 26, 36);
 }
 
 static uint16_t *gu_best(int mode)       /* the best of each way */
 {
-    return mode == GU_PRESS ? &sav.more[SV_GULL_PRESS].best : &sav.gull.best[mode & 1];
+    return mode == GU_HOLD ? &sav.more[SV_GULL_HOLD].best : &sav.gull.best[mode & 1];
 }
 
 static int key_y(int k)                  /* SING: a key's height (F3 low, G5 high) */
@@ -83,11 +80,12 @@ static void gull_go(void)
     gu.vy = 0.0f;
     gu.speed = 62.0f;
     gu.held = -1;
+    gu.keys = 0;                         /* a fresh start: nothing held (press again to climb) */
     gu.last_ms = gu.flap_ms = plat_ms();
     for (i = 0; i < GU_POSTS; i++)
         gu_post(i, 260.0f + (float)(i * GU_SPACE));
     gu.state = GS2_FLY;
-    app_say(gu.mode == GU_SING ? "SING THROUGH THE GAPS" : gu.mode == GU_PRESS ? "PRESS TO CLIMB" : "FLAP", "");
+    app_say(gu.mode == GU_SING ? "SING THROUGH THE GAPS" : gu.mode == GU_HOLD ? "HOLD TO CLIMB" : "FLAP", "");
 }
 
 static void gull_over(void)
@@ -129,10 +127,7 @@ static void gull_key(int k, int down, uint32_t ms)
         snd_unlock();
         return;
     }
-    if (gu.mode == GU_PRESS) {           /* a pad key down: a note for the height (the lift is its pressure, below;
-                                          * velocity is not steady enough to steer by) */
-        if (k < GU_PAD_LO || k > GU_PAD_HI)
-            return;
+    if (gu.mode == GU_HOLD) {            /* a key down: up it goes (while held), a note for the height */
         gu.flap_ms = ms;
         snd_lock();
         bw_note(flap_note(), 90, BW_PLUCK);
@@ -165,7 +160,7 @@ static void gull_button(int b, int down)
     }
 }
 
-static const char *const GU_MODE[3] = {"FLAP", "SING", "PRESS"};
+static const char *const GU_MODE[3] = {"FLAP", "SING", "HOLD"};
 
 static void gull_enc(int role, int steps)
 {
@@ -208,14 +203,8 @@ static void gull_step(uint32_t now)      /* the flight, by time */
             gu.y = GU_TOP + GU_R;
             gu.vy = 0.0f;
         }
-    } else if (gu.mode == GU_PRESS) {    /* lean on a pad key: the harder, the more lift; none, it sinks */
-        int k, press = 0;
-        for (k = GU_PAD_LO; k <= GU_PAD_HI; k++)
-            if (gu.keys >> k & 1u) {
-                int p = touch_pressure((uint32_t)k);
-                press = p > press ? p : press;
-            }
-        gu.vy += (380.0f - (float)press * 6.5f) * dt;
+    } else if (gu.mode == GU_HOLD) {     /* a key held: it climbs; none: it sinks */
+        gu.vy += (gu.keys ? -420.0f : 380.0f) * dt;
         gu.vy = gu.vy > 220.0f ? 220.0f : gu.vy < -220.0f ? -220.0f : gu.vy;
         gu.y += gu.vy * dt;
         if (gu.y < GU_TOP + GU_R) {
@@ -298,7 +287,7 @@ static void gull_draw(uint32_t now)
         for (i = -20; i < 240; i += 20)
             cv_rect(i + (int32_t)(now / 120u % 20u), GU_SEA + 4, 10, 2, G_FOAM);
         cv_rect(0, 0, 240, 18, G_SEA);
-        cv_text(6, 3, &FONT_XS, gu.mode == GU_SING ? "GULL: SING" : gu.mode == GU_PRESS ? "GULL: PRESS" : "GULL: FLAP",
+        cv_text(6, 3, &FONT_XS, gu.mode == GU_SING ? "GULL: SING" : gu.mode == GU_HOLD ? "GULL: HOLD" : "GULL: FLAP",
                 G_PAPER);
         if (gu.state != GS2_STAND) {
             int_text(gu.score, s);
@@ -321,9 +310,9 @@ static void gull_draw(uint32_t now)
             round_rect(14, 36, 212, 136, 8, G_PAPER);
             cv_text(24, 44, &FONT_XS, "K1 MODE", G_PLANK2);
             cv_text(104, 42, &FONT_B, GU_MODE[sav.gull.mode % 3u], G_INK);
-            if (sav.gull.mode == GU_PRESS) {
-                cv_text(24, 92, &FONT_XS, "HOLD A LIT KEY AND LEAN ON IT:", G_PLANK2);
-                cv_text(24, 106, &FONT_XS, "HARDER CLIMBS, EASING OFF SINKS.", G_PLANK2);
+            if (sav.gull.mode == GU_HOLD) {
+                cv_text(24, 92, &FONT_XS, "HOLD ANY KEY AND THE GULL CLIMBS.", G_PLANK2);
+                cv_text(24, 106, &FONT_XS, "LET GO AND IT SINKS.", G_PLANK2);
             } else if (sav.gull.mode == GU_SING) {
                 cv_text(24, 66, &FONT_XS, "K2 LEVEL", G_PLANK2);
                 cv_text(104, 64, &FONT_B, sav.gull.level == 1 ? "NOTES SHOWN" : "BY EAR", G_INK);
@@ -342,7 +331,7 @@ static void gull_draw(uint32_t now)
             }
         }
         gull_bird(GU_X, (int32_t)gu.y + (gu.state == GS2_OVER ? (int32_t)((now - gu.over_ms) / 20u) : 0),
-                  gu.mode != GU_SING ? now - gu.flap_ms < 150u || (gu.mode == GU_PRESS && gu.vy < -40.0f) :
+                  gu.mode != GU_SING ? now - gu.flap_ms < 150u || (gu.mode == GU_HOLD && gu.vy < -40.0f) :
                                        (now / 160u & 1u));
         if (gu.state == GS2_OVER) {
             round_rect(40, 70, 160, 70, 8, G_PAPER);
@@ -390,28 +379,20 @@ static void gull_best(char *t)
     }
 }
 
-static uint32_t gull_keys_lit(uint32_t *mid)   /* none (the game is finding them); PRESS: its pad glows */
+static uint32_t gull_keys_lit(uint32_t *mid)   /* none: the game is finding them */
 {
-    static const uint8_t WK[16] = PLAT_WHITE_KEYS;
-    int i;
     *mid = 0;
-    if (gu.mode == GU_PRESS)
-        for (i = 0; i < 16; i++)
-            if (WK[i] >= GU_PAD_LO && WK[i] <= GU_PAD_HI)
-                *mid |= 1u << WK[i];
     return 0;
 }
-
-static int gull_touch(void) { return sav.gull.mode % 3u == GU_PRESS; }
 
 static void gull_where(char *t)
 {
     t[0] = 0;
     if (gu.state == GS2_STAND) {
         text_cat(t, sav.gull.mode == GU_SING ? "GULL. KNOB 1, MODE SING. KNOB 2, LEVEL " :
-                    sav.gull.mode == GU_PRESS ? "GULL. KNOB 1, MODE PRESS. " : "GULL. KNOB 1, MODE FLAP. ");
-        if (sav.gull.mode == GU_PRESS) {
-            text_cat(t, "HOLD A LIT MIDDLE KEY AND LEAN ON IT, HARDER CLIMBS, EASING OFF SINKS. ");
+                    sav.gull.mode == GU_HOLD ? "GULL. KNOB 1, MODE HOLD. " : "GULL. KNOB 1, MODE FLAP. ");
+        if (sav.gull.mode == GU_HOLD) {
+            text_cat(t, "HOLD ANY KEY AND THE GULL CLIMBS, LET GO AND IT SINKS. ");
         } else if (sav.gull.mode == GU_SING) {
             text_cat(t, sav.gull.level == 1 ? "1, NOTES SHOWN. " : "2, BY EAR. ");
             text_cat(t, "HOLD A KEY FOR YOUR HEIGHT, PLAY EACH GAP'S NOTE TO FLY THROUGH IT. ");
@@ -439,4 +420,4 @@ static const uint8_t GULL_TUNE[] = {72, 0, 76, 79, 0, 0, 81, 79, 76, 0, 72, 0, 0
 static const game_t GAME_GULL = {"GULL", RGB(110, 143, 196), gull_enter, gull_leave, gull_frame, gull_key,
                                  gull_button, gull_enc, 0, gull_attract, gull_best, gull_keys_lit,
                                  GULL_TUNE, sizeof GULL_TUNE, 200, BW_PLUCK, gull_where, 0, gull_playing,
-                                 "FLY THE GULL", gull_touch};
+                                 "FLY THE GULL", 0};

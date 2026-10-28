@@ -336,9 +336,13 @@ static uint32_t kq[KQ];                  /* key << 1 | down, << 8 above: the ms 
 static volatile uint32_t kq_w, kq_r;
 static uint32_t tick_keys, kq_ms[KQ];
 
+#ifdef APP_TOUCH
 static uint8_t sh_touch_on;              /* lib/touch on: the keys come from it, in the main loop (input). (Not
                                           * touch_live / touch_held: lib/touch.c's own, in the same unity build) */
 static uint32_t sh_touch_keys;
+#else
+#define sh_touch_on 0
+#endif
 
 static void keys_tick(uint32_t now)      /* the tick */
 {
@@ -361,6 +365,7 @@ static void keys_tick(uint32_t now)      /* the tick */
     }
 }
 
+#ifdef APP_TOUCH
 static void touch_follow(void)           /* touch on while the game in front wants it, off otherwise */
 {
     int want = ui.game && ui.game->touch && ui.game->touch();
@@ -371,11 +376,13 @@ static void touch_follow(void)           /* touch on while the game in front wan
     sh_touch_keys = 0;
     tick_keys = plat_keys();
 }
+#endif
 
 static void input(void)
 {
     uint32_t btn = plat_buttons(), k;
     const game_t *g = ui.game;
+#ifdef APP_TOUCH
     touch_follow();
     if (sh_touch_on) {                    /* the keys from touch: each press and release, with how it was played */
         uint32_t keys, ch, now = plat_ms();
@@ -388,6 +395,7 @@ static void input(void)
             if ((ch >> k & 1u) && g && g->key)
                 g->key((int)k, (int)(keys >> k & 1u), now);
     }
+#endif
     while (kq_r != kq_w) {               /* the keys, as the tick saw them */
         uint32_t e = kq[kq_r % KQ], ms = kq_ms[kq_r % KQ];
         kq_r++;
@@ -753,10 +761,12 @@ void app_host_ms(void)
             gull_key(9, 1, now);
             gull_key(9, 0, now);
         }
-        if (next >= 0 && gu.mode == GU_PRESS && now % 5u == 0u) {   /* lean on D4: more below the gap, less
-                                                                      * above, eased by how fast it moves */
-            int32_t p = 46 + (int32_t)((gu.y - (float)gu.post_gap[next]) * 1.5f + gu.vy * 0.25f);
-            app_host_key(9, 100, (uint32_t)clamp(p, 1, 100));
+        if (next >= 0 && gu.mode == GU_HOLD) {   /* hold below the gap (and falling), let go above it */
+            int want = gu.y + gu.vy * 0.15f > (float)gu.post_gap[next];
+            if (want && !(gu.keys >> 9 & 1u))
+                gull_key(9, 1, now);
+            else if (!want && (gu.keys >> 9 & 1u))
+                gull_key(9, 0, now);
         }
         if (next >= 0 && gu.mode == 1 && gu.held != gu.post_key[next]) {
             if (gu.held >= 0)

@@ -13,8 +13,8 @@
 #define APP_SPLASH_RGB RGB(247, 169, 139)
 #define APP_BLOCK 256u                   /* frames per audio block: 5.8 ms at 44.1 kHz */
 #define APP_TICK                         /* 1 kHz: the tower rings its bells on time (games' app_tick) */
-#define APP_TOUCH                        /* velocity and pressure from the keys (lib/touch.h), on while a game wants it
-                                          * (game_t.touch) */
+/* (APP_TOUCH, velocity and pressure from the keys through lib/touch, is left out: on the FM-1 neither was steady
+ * enough to play a game by. The shell still follows game_t.touch when it is defined) */
 void app_tick(void);
 
 /* the store: the save at 0xFC000, the panel calibration at 0xDC000 */
@@ -76,7 +76,7 @@ typedef struct {
         uint16_t best;
     } more[8];
 } save_t;
-enum { SV_STRIKER, SV_BALLOON, SV_FISH, SV_FORTUNE, SV_TEACUPS, SV_BUMPERS, SV_COASTER, SV_GULL_PRESS };
+enum { SV_STRIKER, SV_BALLOON, SV_FISH, SV_FORTUNE, SV_TEACUPS, SV_BUMPERS, SV_COASTER, SV_GULL_HOLD };
 extern save_t sav;
 void save_dirty(void);                   /* saved at the next quiet moment */
 

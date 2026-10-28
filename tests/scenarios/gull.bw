@@ -1,5 +1,5 @@
 # Gull: flown well (the test player), FLAP passes posts; let go, it falls in the sea. SING: the gap's key held passes
-# posts; let go, it sinks into the sea. PRESS: leaned on below the gap (the test player's pressure), it passes posts
+# posts; let go, it sinks into the sea. HOLD: held below the gap (the test player), it passes posts
 wait 800
 turn SELECT 8
 wait 400
