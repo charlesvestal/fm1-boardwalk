@@ -2,6 +2,8 @@
 # counted; then a touch with no calls: it ends with a result (round on target only if the plain course is the length
 # set), said with the way it could have gone
 wait 800
+turn SELECT 16
+wait 400
 tap PLAY
 wait 100
 turn K4 2

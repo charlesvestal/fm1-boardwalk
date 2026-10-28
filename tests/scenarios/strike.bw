@@ -2,6 +2,8 @@
 # handstroke gap before rows 2 and 4), stopped after four blows: struck 90 % or better, but no best (not a whole
 # touch)
 wait 800
+turn SELECT 16
+wait 400
 tap PLAY
 turn K2 2
 wait 100

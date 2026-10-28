@@ -115,10 +115,12 @@ static void sp_pct(char *t, int32_t v)
 #include "scene.c"
 
 /* --------------------------------------------------------------- cabinets --- */
-static const game_t *const GAMES[] = {&GAME_BELLS, &GAME_PITCH, &GAME_TILES, &GAME_ECHO, &GAME_CHORD, &GAME_SIMON,
-                                      &GAME_WHACK, &GAME_GALLERY, &GAME_GULL, &GAME_CLAW, &GAME_STRIKER,
-                                      &GAME_BALLOON, &GAME_FISH, &GAME_FORTUNE, &GAME_TEACUPS, &GAME_BUMPERS,
-                                      &GAME_COASTER};
+/* the row: two quick, obvious ones first, then the kinds taking turns (timing, reflex, ear, rhythm, a toy to
+ * rest on), the deeper ones further along, and the bell tower at the pier's end */
+static const game_t *const GAMES[] = {&GAME_STRIKER, &GAME_WHACK, &GAME_BALLOON, &GAME_TILES, &GAME_GULL,
+                                      &GAME_GALLERY, &GAME_TEACUPS, &GAME_FORTUNE, &GAME_SIMON, &GAME_BUMPERS,
+                                      &GAME_ECHO, &GAME_CLAW, &GAME_PITCH, &GAME_FISH, &GAME_CHORD,
+                                      &GAME_COASTER, &GAME_BELLS};
 #define NGAMES ((int)(sizeof GAMES / sizeof GAMES[0]))
 
 /* ------------------------------------------------------------------- save --- */

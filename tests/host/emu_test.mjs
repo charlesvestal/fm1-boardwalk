@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (C) 2026 Charles Vestal
-// The browser build in Node: boot it on the boardwalk (the sea and the attract tune sound), step up to Bells with
-// PLAY, ring, and expect sound and screen frames throughout.
+// The browser build in Node: boot it on the boardwalk (the sea and the attract tune sound), walk to Bells, step up
+// with PLAY, ring, and expect sound and screen frames throughout.
 import fs from "fs";
 const wasm = fs.readFileSync(process.argv[2]);
 let mem;
@@ -11,7 +11,7 @@ const { instance } = await WebAssembly.instantiate(wasm, { wasi_snapshot_preview
 const ex = instance.exports; mem = ex.memory;
 if (ex._initialize) ex._initialize();
 ex.web_master(2800); ex.web_boot();
-const B_PLAY = 10;                       // plat.h's button order
+const B_PLAY = 10, B_OCTUP = 13;         // plat.h's button order
 function run(blocks) {                   // the peak over these blocks
   let peak = 0;
   for (let i = 0; i < blocks; i++) {
@@ -22,6 +22,8 @@ function run(blocks) {                   // the peak over these blocks
   return peak;
 }
 const walk = run(1400);                  // ~4 s on the boardwalk
+for (let i = 0; i < 16; i++) { ex.web_buttons(1 << B_OCTUP); run(10); ex.web_buttons(0); run(10); }   // to Bells, the row's end
+run(200);
 ex.web_buttons(1 << B_PLAY); run(20); ex.web_buttons(0); run(40);   // into Bells
 ex.web_buttons(1 << B_PLAY); run(20); ex.web_buttons(0);            // ring
 const ring = run(1400);

@@ -1,6 +1,6 @@
 # Pitch TUNE: held in tune by ear (the test's player) the duel goes on; let go, it drifts out and ends
 wait 800
-tap OCT+
+turn SELECT 12
 wait 400
 tap PLAY
 wait 100

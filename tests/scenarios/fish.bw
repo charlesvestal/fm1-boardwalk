@@ -2,12 +2,12 @@
 # casts or the clock run out, the best kept. Then frantic reeling snaps the line, slow reeling lets the fish go, and
 # an early strike loses it; level 2 by ear
 wait 800
-turn SELECT 12
+turn SELECT 13
 wait 400
-expect cab 12
+expect cab 13
 tap PLAY
 wait 100
-expect game 13
+expect game 14
 expect fish_state 0
 shot stand.png
 tap PLAY

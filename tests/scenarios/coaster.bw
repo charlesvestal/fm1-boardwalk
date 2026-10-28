@@ -2,12 +2,12 @@
 # clean, the best kept; a ride with no notes stalls on the first climb and rolls back; level 3 played whole; mashing
 # every key gets nowhere
 wait 800
-turn SELECT 16
+turn SELECT 15
 wait 400
-expect cab 16
+expect cab 15
 tap PLAY
 wait 100
-expect game 17
+expect game 16
 expect coaster_state 0
 expect coaster_level 1
 shot stand.png

@@ -265,7 +265,7 @@ static void chord_draw(uint32_t now)
             cv_text(14, 76, &FONT_XS, "HEAR A CHORD, FIND ITS NOTES.", G_PLANK2);
             for (i = 0; i < 3; i++) {    /* the marks, as a key */
                 static const char *const W[3] = {"RIGHT", "OTHER OCTAVE", "NOT IN IT"};
-                static const int8_t X[3] = {14, 70, 160};
+                static const uint8_t X[3] = {14, 70, 160};
                 fill_circle(X[i] + 4, 98, 4, MARK_COL[i == 0 ? 1 : i == 1 ? 2 : 0]);
                 cv_text(X[i] + 12, 91, &FONT_XS, W[i], G_PLANK2);
             }

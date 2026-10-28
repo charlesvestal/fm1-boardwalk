@@ -1,8 +1,8 @@
 # Chord Code: guessed right at once, five chords score 6 each (level 1); guessed wrong, six tries a chord and none found
 wait 800
-turn SELECT 4
+turn SELECT 14
 wait 400
-expect cab 4
+expect cab 14
 tap PLAY
 wait 100
 shot stand.png

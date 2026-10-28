@@ -1,13 +1,13 @@
 # Fortune: a question of five notes, asked: the seer looks, answers, a card slides out and he has told one more;
 # the same notes again give the same card; a different question; K1 the voice; PLAY with no notes does nothing
 wait 800
-turn SELECT 13
+turn SELECT 7
 wait 400
-expect cab 13
+expect cab 7
 shot boardwalk.png
 tap PLAY
 wait 100
-expect game 14
+expect game 8
 expect fortune_state 0
 shot empty.png
 tap PLAY

@@ -1,12 +1,12 @@
 # Bumpers: from the boardwalk to the cabinet; the test player steers at the nearest car (bumps score), then at the
 # next note up (runs and chords: combos); sixty seconds and it is over, the best kept; PLAY stops a session
 wait 800
-turn SELECT 15
+turn SELECT 9
 wait 400
-expect cab 15
+expect cab 9
 tap PLAY
 wait 100
-expect game 16
+expect game 10
 expect bumpers_state 0
 shot stand.png
 autobumpers on

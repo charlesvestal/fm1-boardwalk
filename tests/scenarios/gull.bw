@@ -1,12 +1,12 @@
 # Gull: flown well (the test player), FLAP passes posts; let go, it falls in the sea. SING: the gap's key held passes
 # posts; let go, it sinks into the sea. HOLD: held below the gap (the test player), it passes posts
 wait 800
-turn SELECT 8
+turn SELECT 4
 wait 400
-expect cab 8
+expect cab 4
 tap PLAY
 wait 100
-expect game 9
+expect game 5
 shot stand.png
 autogull on
 tap PLAY

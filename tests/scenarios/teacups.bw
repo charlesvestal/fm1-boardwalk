@@ -1,12 +1,12 @@
 # Teacups: a ride tapped on every beat (the test player) reaches top speed and holds it; a ride tapped between the
 # beats wobbles and scores lower; the best kept from the first. Level 2 (every beat), then level 1 (one a bar)
 wait 800
-turn SELECT 14
+turn SELECT 6
 wait 400
-expect cab 14
+expect cab 6
 tap PLAY
 wait 100
-expect game 15
+expect game 7
 expect teacups_state 0
 turn K1 1
 expect teacups_level 2

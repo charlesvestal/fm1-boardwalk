@@ -2,12 +2,12 @@
 # best kept. Let go at four fifths of the ring: tied, fewer points, the best stays. Held on and on: it pops. A key
 # held by the script on level 3 pops too; one let go at once leaves the balloon on the nozzle
 wait 800
-turn SELECT 11
+turn SELECT 2
 wait 400
-expect cab 11
+expect cab 2
 tap PLAY
 wait 100
-expect game 12
+expect game 3
 expect balloon_state 0
 expect keys_mid 875136
 shot stand.png

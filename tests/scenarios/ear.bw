@@ -1,11 +1,11 @@
 # Pitch EAR: five right and the level goes up (shown, with its name); a wrong answer costs a life and the right note
 # follows yours; three wrong and it is over, the best kept
 wait 800
-tap OCT+
+turn SELECT 12
 wait 400
 tap PLAY
 wait 100
-expect game 2
+expect game 13
 shot stand.png
 tap PLAY
 wait 1800

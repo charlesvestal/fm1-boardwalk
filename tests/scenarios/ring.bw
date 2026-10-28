@@ -1,8 +1,10 @@
 # Bells: listening to Plain Bob Minor, then ringing bell 2 on the keys, on time and then not at all; the best kept
 wait 800
+turn SELECT 16
+wait 400
 tap PLAY
 wait 100
-expect game 1
+expect game 17
 expect method 4
 expect bell 0
 tap PLAY

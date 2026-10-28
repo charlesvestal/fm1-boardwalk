@@ -1,12 +1,11 @@
 # Tiles: Ode to Joy on NORMAL, every tile hit on time: every note played; again with every other tile left: about
 # half, the misses counted; the best kept
 wait 800
-tap OCT+
-tap OCT+
+turn SELECT 3
 wait 400
 tap PLAY
 wait 100
-expect game 3
+expect game 4
 shot stand.png
 autotiles all
 tap PLAY

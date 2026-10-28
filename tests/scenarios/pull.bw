@@ -1,6 +1,8 @@
 # Bells: your bell sounds at every pull: standing, on time, and far too soon (a clash, scored as a bad blow, the blow
 # due still to come); listening, the keys are quiet while the tower rings
 wait 800
+turn SELECT 16
+wait 400
 tap PLAY
 turn K2 2
 wait 100

@@ -1,11 +1,11 @@
 # Simon: played back right it grows; a wrong lane ends it, the best kept
 wait 800
-turn SELECT 5
+turn SELECT 8
 wait 400
-expect cab 5
+expect cab 8
 tap PLAY
 wait 100
-expect game 6
+expect game 9
 shot stand.png
 autosimon on
 tap PLAY

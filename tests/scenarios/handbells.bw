@@ -1,5 +1,7 @@
 # Bells, handbells: a pair (1 and 2), both struck on time by the test player: struck well
 wait 800
+turn SELECT 16
+wait 400
 tap PLAY
 wait 100
 turn K4 1

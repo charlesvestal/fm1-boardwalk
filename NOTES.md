@@ -19,6 +19,10 @@ boardwalk menu runs, Pitch and Tiles are cabinets with attract screens but no ga
   Keys are read by the 1 kHz tick (exact times; Bells, Tiles and Echo answer in the tick itself); the black keys
   show what comes next (Bells: your place; Tiles: the next lane). The boardwalk plays each
   cabinet's attract tune quietly over the sea, fading as the row moves; K1 the sea, K2 the tunes. Gulls call.
+- The row's order (2026-10-28): Striker, Moles, Balloons, Tiles, Gull, Ducks, Teacups, Fortune, Parrot, Bumpers,
+  Echo, Claw, Pitch, Fishing, Chord Code, Coaster, Bells: two quick, obvious ones first, then the kinds taking turns
+  (timing, reflex, ear, rhythm, a toy to rest on), the deeper ones further along, the bell tower at the pier's end.
+  Scenarios walk to their cabinet by count (`turn SELECT n`), so a new order changes their counts.
 - Screen reader: every screen on WHERE, knob values as they settle, answers at once; fm1-reader's audit is clean
   (`app/words.tsv`, `app/words.allow`, `app/web/words/`). The words link points at
   charlesvestal.github.io/fm1-boardwalk/words/, which does not exist yet (the repo is private).

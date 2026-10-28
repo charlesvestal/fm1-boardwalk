@@ -2,12 +2,11 @@
 # on the mark: a high score and the best kept; a practice strike standing; level 3 (uneven) played a mark high: fewer
 # points, no new best; stopped with PLAY
 wait 800
-turn SELECT 10
 wait 400
-expect cab 10
+expect cab 0
 tap PLAY
 wait 100
-expect game 11
+expect game 1
 expect striker_state 0
 wait 700
 shot stand.png

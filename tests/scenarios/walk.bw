@@ -11,22 +11,22 @@ expect cab 1
 expect tune_cab -1
 wait 400
 expect tune_cab 1
-shot pitch.png
+shot moles.png
 tap PLAY
 wait 200
 expect game 2
-shot pitch_stand.png
+shot moles_stand.png
 tap HOME
 wait 200
 expect game 0
 tap OCT+
 wait 400
 expect cab 2
-shot tiles.png
+shot balloons.png
 tap OCT+
 wait 400
 expect cab 3
-shot echo.png
+shot tiles.png
 turn SELECT -3
 wait 400
 expect cab 0
@@ -38,7 +38,7 @@ tap PLAY
 wait 200
 expect game 1
 expect tune_cab -1
-shot bells.png
+shot striker.png
 tap HOME
 wait 2000
 reboot
