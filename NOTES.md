@@ -12,7 +12,7 @@ boardwalk menu runs, Pitch and Tiles are cabinets with attract screens but no ga
   (dev FM-1_1200), USB "Boardwalk FM-1". No Bluetooth, no USB audio out.
 - Eight cabinets: **Bells** (tower, handbells, conducting), **Pitch** (EAR and TUNE), **Tiles** (five songs),
   **Echo** (rhythm call and response), **Chord Code**, **Parrot** (inspired by Simon), **Moles** (whack-a-mole),
-  **Ducks** (a shooting gallery). Each cabinet has a three-word blurb (game_t.blurb) under the boardwalk, and the one
+  **Ducks** (a shooting gallery), **Gull** (inspired by Flappy Bird). Each cabinet has a three-word blurb (game_t.blurb) under the boardwalk, and the one
   in front blinks PRESS PLAY. A design and copy pass (2026-10-28, one reviewer a game) is in the git log.
   Keys are read by the 1 kHz tick (exact times; Bells, Tiles and Echo answer in the tick itself); the black keys
   show what comes next (Bells: your place; Tiles: the next lane). The boardwalk plays each
@@ -144,8 +144,16 @@ Bells as built: K1 method (ten: Plain Hunt, Plain Bob and Grandsire Doubles; Pla
   line (a good run is a tune), on a 112 bpm groove's eighths; gold = 3; a stray whack -1; faster as the 45 s run out.
   K1 level.
 - **Ducks** (a shooting gallery): ducks on three rows quack their note as they come into view (by ear, again
-  midway); press its key to shoot; a shot at nothing jams the gun 600 ms. L1-2 names shown and keys lit (mid), L3-4
-  by ear. 20 ducks.
+  midway); press its key to shoot; a shot at nothing plays your note as a dull click and jams the gun 1 s (JAMMED!).
+  L1-2 names on the ducks, L3-4 by ear; the keys never light. 20 ducks.
+
+## Gull (built 2026-10-28)
+
+- FLAP: any key flaps (gravity 520 px/s², a flap -185 px/s); each flap sings a C major pentatonic note set by the
+  gull's height. SING: the held key is the height (F3 at the sea, G5 at the top; let go and it sinks 45 px/s); each
+  gap is a white key's note, chimed as its posts come on; level 1 names it on the post, level 2 by ear. Posts 128 px
+  apart, faster by 1.5 px/s a post; FLAP's gaps narrow as the score climbs. The keys never light.
+- The save grew (sav.gull after rsv); a save from before it loads (offsetof(save_t, gull) bytes), the rest default.
 
 ## More games still
 

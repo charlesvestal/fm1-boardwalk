@@ -2,8 +2,8 @@
  * Copyright (C) 2026 Charles Vestal */
 /* The shooting gallery: ducks swim across three rows, each one carrying a note, and quack it as they come into view
  * (by ear, again midway). Press a duck's key to shoot it: a clank, and over it goes. A shot at nothing jams the gun
- * for a moment, so mashing the keys gets nowhere. On the first levels the ducks wear their names and their keys
- * light; later only the quack says which key it is. Twenty ducks a round, scored on how many you get.
+ * for a moment (the note you played heard dull), so mashing the keys gets nowhere. On the first levels the ducks
+ * wear their names; later only the quack says which key it is. The keys never light: finding them is the game. Twenty ducks a round, scored on how many you get.
  *
  * Standing: K1 the level; PLAY starts. Part of the unity build. */
 #include "game.h"
@@ -108,17 +108,18 @@ static void gallery_key(int k, int down, uint32_t ms)
     int32_t far = -1;
     if (!down)
         return;
-    if (gl.state == GS_PLAY && (int32_t)(ms - gl.jam_until) < 0) {   /* jammed: a dry click, no note, no shot */
+    if (gl.state == GS_PLAY && (int32_t)(ms - gl.jam_until) < 0) {   /* jammed: a dull click of the note, no shot */
         snd_lock();
-        bw_drum(BW_BLOCK_LO, 40);
+        bw_note(53 + k, 70, BW_DUD);
         snd_unlock();
         return;
     }
-    snd_lock();
-    bw_note(53 + k, 100, BW_PLUCK);
-    snd_unlock();
-    if (gl.state != GS_PLAY)
+    if (gl.state != GS_PLAY) {           /* standing: the keys play */
+        snd_lock();
+        bw_note(53 + k, 100, BW_PLUCK);
+        snd_unlock();
         return;
+    }
     gl.shots++;
     for (i = 0; i < GL_ON; i++) {        /* a duck with this note: the one nearest getting away */
         duck_t *d = &gl.duck[i];
@@ -128,15 +129,18 @@ static void gallery_key(int k, int down, uint32_t ms)
             best = i;
         }
     }
-    if (best < 0) {                      /* nothing there: the gun jams a moment */
+    if (best < 0) {                      /* nothing there: the note you played, dull, and the gun jams */
         gl.streak = 0;
         gl.jam_until = ms + GL_JAM;
         gl.jammed_ms = ms;
         snd_lock();
-        bw_note(41, 80, BW_CLUNK);
+        bw_note(53 + k, 100, BW_DUD);
         snd_unlock();
         return;
     }
+    snd_lock();                          /* a hit: its note, and the tin target's clank */
+    bw_note(53 + k, 100, BW_PLUCK);
+    snd_unlock();
     gl.jam_until = ms + 120u;            /* a chord pressed fires once */
     snd_lock();
     bw_drum(BW_BLOCK_HI, 100);           /* the tin target's clank */
@@ -385,17 +389,10 @@ static void gallery_best(char *t)
     }
 }
 
-static uint32_t gallery_keys_lit(uint32_t *mid)   /* the ducks' keys, on the levels with names */
+static uint32_t gallery_keys_lit(uint32_t *mid)   /* none: finding the key is the game */
 {
-    uint32_t keys = 0;
-    int i;
     *mid = 0;
-    if (gl.state != GS_PLAY || clamp(sav.gallery.level, 1, GL_LEVELS) > 2)
-        return 0;
-    for (i = 0; i < GL_ON; i++)
-        if (gl.duck[i].on && !gl.duck[i].hit)
-            *mid |= 1u << gl.duck[i].key;
-    return keys;
+    return 0;
 }
 
 static void gallery_where(char *t)

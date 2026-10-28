@@ -99,11 +99,12 @@ static void sp_pct(char *t, int32_t v)
 #include "games/simon.c"
 #include "games/whack.c"
 #include "games/gallery.c"
+#include "games/gull.c"
 #include "scene.c"
 
 /* --------------------------------------------------------------- cabinets --- */
 static const game_t *const GAMES[] = {&GAME_BELLS, &GAME_PITCH, &GAME_TILES, &GAME_ECHO, &GAME_CHORD, &GAME_SIMON,
-                                      &GAME_WHACK, &GAME_GALLERY};
+                                      &GAME_WHACK, &GAME_GALLERY, &GAME_GULL};
 #define NGAMES ((int)(sizeof GAMES / sizeof GAMES[0]))
 
 /* ------------------------------------------------------------------- save --- */
@@ -132,15 +133,23 @@ static void save_defaults(void)
     sav.echo.level = 1;
     sav.chord.level = sav.whack.level = sav.gallery.level = 1;
     sav.simon.level = 2;
+    sav.gull.level = 1;
 }
 
 /* ---------------------------------------------------------------- contract --- */
 void app_init(void)
 {
     bw_init();
-    if (plat_store_load(OBJ_SAVE, &sav, sizeof sav) != (int)sizeof sav || sav.magic != SAVE_MAGIC
-        || sav.format != SAVE_FORMAT)
-        save_defaults();
+    {
+        int n;
+        memset(&sav, 0, sizeof sav);
+        n = plat_store_load(OBJ_SAVE, &sav, sizeof sav);
+        if ((n != (int)sizeof sav && n != (int)offsetof(save_t, gull)) || sav.magic != SAVE_MAGIC ||
+            sav.format != SAVE_FORMAT)   /* (the save before Gull ends where it begins) */
+            save_defaults();
+        if (!sav.gull.level)             /* (a save from before Gull) */
+            sav.gull.level = 1;
+    }
     sav.cab = (uint8_t)(sav.cab % NGAMES);
     sav.bells.method = (uint8_t)(sav.bells.method % RING_NMETHODS);
     sav.bells.pace = (uint8_t)clamp(sav.bells.pace, PACE_MIN, PACE_MAX);
@@ -160,6 +169,8 @@ void app_init(void)
     sav.gallery.level = (uint8_t)clamp(sav.gallery.level, 1, GL_LEVELS);
     sav.simon.level = (uint8_t)clamp(sav.simon.level, 1, 3);
     sav.bells.mode %= 3u;
+    sav.gull.mode &= 1u;
+    sav.gull.level = (uint8_t)clamp(sav.gull.level, 1, 2);
 }
 void app_render(int32_t *lr, uint32_t n, uint32_t gain_q12) { bw_render(lr, n, gain_q12); }
 void app_panic(void) { bw_panic(); }
@@ -522,6 +533,10 @@ int app_expect(const char *what, int *got)
         *got = sav.touches;
     else if (!strcmp(what, "bells_mode"))
         *got = sav.bells.mode;
+    else if (!strcmp(what, "gull_state"))    /* 0 standing, 1 flying, 2 over */
+        *got = gu.state;
+    else if (!strcmp(what, "gull_score"))
+        *got = gu.score;
     else if (!strcmp(what, "simon_state"))   /* 0 standing, 1 showing, 2 yours, 3 over */
         *got = sm.state;
     else if (!strcmp(what, "simon_len"))
@@ -569,7 +584,7 @@ int app_expect(const char *what, int *got)
  *   answer right|wrong      Pitch EAR: the key of the note asked, or the one above it
  *   autotune on|off         Pitch TUNE: the knobs turned against the drift, as a good ear would
  *   autotiles all|half|off  Tiles: every tile hit on time, or every other one left */
-static int host_mash, host_autoring, host_autoconduct, host_autotune, host_autotiles, host_autoecho, host_autosimon, host_autowhack, host_autoshoot, host_autochord;
+static int host_autogull, host_mash, host_autoring, host_autoconduct, host_autotune, host_autotiles, host_autoecho, host_autosimon, host_autowhack, host_autoshoot, host_autochord;
 int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, const char *d)
 {
     (void)b;
@@ -581,6 +596,10 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
     }
     if (!strcmp(cmd, "autotune")) {
         host_autotune = !strcmp(a, "on");
+        return 1;
+    }
+    if (!strcmp(cmd, "autogull")) {     /* autogull on|off: Gull flown through every gap */
+        host_autogull = !strcmp(a, "on");
         return 1;
     }
     if (!strcmp(cmd, "mash")) {         /* mash on|off: every key, every 320 ms (a game must not reward it) */
@@ -651,6 +670,21 @@ void app_host_ms(void)
         for (k = 0; k < NKEYS; k++)
             if (wm.up_until[k])
                 whack_key(k, 1, now);
+    }
+    if (host_autogull && ui.game == &GAME_GULL && gu.state == GS2_FLY) {
+        int i, next = -1;
+        for (i = 0; i < GU_POSTS; i++)   /* the next post ahead of the gull */
+            if (gu.post_x[i] + GU_POST_W >= GU_X - GU_R && (next < 0 || gu.post_x[i] < gu.post_x[next]))
+                next = i;
+        if (next >= 0 && gu.mode == 0 && gu.vy > 0.0f && gu.y > gu.post_gap[next] + 6) {
+            gull_key(9, 1, now);
+            gull_key(9, 0, now);
+        }
+        if (next >= 0 && gu.mode == 1 && gu.held != gu.post_key[next]) {
+            if (gu.held >= 0)
+                gull_key(gu.held, 0, now);
+            gull_key(gu.post_key[next], 1, now);
+        }
     }
     if (host_mash && ui.game && ui.game->key && now % 320u == 0u) {
         int k;
@@ -834,6 +868,22 @@ void app_speak_dump(void)
         sp_out("SCREEN", sp_buf);
     }
     ec.state = ES_STAND;
+    for (i = 0; i < 2; i++) {            /* Gull: both games, standing, flying, over */
+        sav.gull.mode = (uint8_t)i;
+        sp_join("GAME", GU_MODE[i]);
+        sp_out("READOUT", sp_buf);
+        for (v = GS2_STAND; v <= GS2_OVER; v++) {
+            gu.state = v;
+            gu.score = 7;
+            gull_where(sp_buf);
+            sp_out("SCREEN", sp_buf);
+        }
+    }
+    sp_join("LEVEL", "1, NOTES SHOWN");
+    sp_out("READOUT", sp_buf);
+    sp_join("LEVEL", "2, BY EAR");
+    sp_out("READOUT", sp_buf);
+    gu.state = GS2_STAND;
     /* Pitch */
     for (v = 1; v <= EAR_LEVELS; v++) {
         ear_level_text(v, t);

@@ -120,7 +120,7 @@ static void bell_strike(int i, int note, int vel, int bright_strike)
 /* ------------------------------------------------------------------- notes --- */
 /* two-operator FM: a modulator at a ratio of the note, its index falling away faster than the note itself. The
  * timbres: a pure sine, a pluck, an electric piano, a chime, a bass, the clunk of a missed tile (a low, dull thud);
- * and a sawtooth (Pitch's: every harmonic, so the pitch is plain even on the FM-1's small speaker), band-limited
+ * a dud (a note as a short dull click), and a sawtooth (Pitch's: every harmonic, so the pitch is plain even on the FM-1's small speaker), band-limited
  * (polyBLEP) and softened by a one-pole lowpass */
 typedef struct {
     float ratio, idx, idx_decay, decay, amp;
@@ -135,6 +135,7 @@ static const timbre_t TIMBRE[BW_NTIMBRES] = {
     {1.0f, 1.1f, 0.9999f, 0.99993f, 0.40f, -1, 0},     /* bass */
     {1.41f, 3.0f, 0.998f, 0.9993f, 0.40f, -2, 0},      /* clunk */
     {1.0f, 0.0f, 1.0f, 0.99995f, 0.40f, 0, 1},      /* saw: ~0.5 s */
+    {1.0f, 2.2f, 0.995f, 0.9985f, 0.30f, 0, 0},     /* dud: the note, as a short dull click (a jammed gun) */
 };
 typedef struct {
     float ph, mph, inc, minc, env, idx, idx_decay, decay, lp;

@@ -23,7 +23,7 @@ void bw_panic(void);                     /* everything quiet now (audio interrup
 void bw_bell(int bell, int note, int vel);   /* strike bell slot 0..BW_BELLS-1 at MIDI note (its nominal), vel 1..127 */
 void bw_bell_bright(int bell, int note, int vel);   /* the same, a little brighter: your own bell */
 void bw_bell_pan(int bell, int pan);         /* -64 left .. +63 right */
-enum { BW_SINE, BW_PLUCK, BW_PIANO, BW_CHIME, BW_BASS, BW_CLUNK, BW_SAW, BW_NTIMBRES };
+enum { BW_SINE, BW_PLUCK, BW_PIANO, BW_CHIME, BW_BASS, BW_CLUNK, BW_SAW, BW_DUD, BW_NTIMBRES };
 void bw_note(int note, int vel, int timbre); /* a note, dying away by itself */
 void bw_attract_note(int note, int vel, int timbre);   /* one of the attract tunes' notes (bw_attract's level) */
 void bw_attract(int level);                  /* the attract tunes' level, 0..100, faded over ~0.2 s */

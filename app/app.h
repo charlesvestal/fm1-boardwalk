@@ -3,6 +3,7 @@
 /* Boardwalk: an arcade of music games on a golden-hour boardwalk. The app's half of the contract with fm1-base
  * (device/unity.c, host/plat_host.c), and what is saved. */
 #pragma once
+#include <stddef.h>
 #include <stdint.h>
 #include "plat.h"
 #include "bw.h"
@@ -56,7 +57,13 @@ typedef struct {
     uint16_t touches;                    /* Bells: touches conducted round on target */
     uint8_t hand_best[10];               /* Bells: the best striking per method on handbells */
     uint8_t conduct_len;                 /* Bells: the length a conducted touch is set (leads; 0 any) */
-    uint8_t rsv[3];                      /* room to grow */
+    uint8_t rsv[3];
+    /* added since (a save that ends before here loads, these from their defaults) */
+    struct {
+        uint8_t mode, level;             /* 0 flap, 1 sing; level 1 names on the posts, 2 by ear */
+        uint16_t best[2];                /* posts passed, per mode */
+    } gull;
+    uint8_t rsv2[16];                    /* room to grow */
 } save_t;
 extern save_t sav;
 void save_dirty(void);                   /* saved at the next quiet moment */
