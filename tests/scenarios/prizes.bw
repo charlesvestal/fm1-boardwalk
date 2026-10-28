@@ -1,0 +1,72 @@
+# Prizes: tickets won in a game come out of its cabinet on leaving; at the counter the white keys pick a prize, PLAY
+# trades (a dear one asks again), not enough says so; the night sky and the fireworks change the boardwalk and PLAY
+# turns them off and on; the prizes and the tickets kept across a reboot
+wait 800
+expect cab 1
+tap PLAY
+wait 300
+givetickets 37
+expect tickets 37
+wait 4500
+expect pay 0
+tap HOME
+wait 1000
+expect spit 37
+shot spit.png
+wait 4000
+expect spit 0
+shot boardwalk_tickets.png
+tap OCT-
+wait 500
+expect cab 0
+shot counter.png
+tap PLAY
+wait 300
+expect game 1
+tapkey 4
+wait 100
+expect prize_at 2
+shot booth.png
+tap PLAY
+wait 600
+expect owned 4
+expect tickets 12
+shot traded.png
+tapkey 14
+wait 100
+expect prize_at 8
+tap PLAY
+wait 100
+expect owned 4
+expect tickets 12
+givetickets 4000
+wait 4500
+turn K1 5
+wait 100
+expect prize_at 13
+tap PLAY
+wait 100
+expect owned 4
+tap PLAY
+wait 600
+expect owned 8196
+expect night 1
+expect tickets 2512
+shot night_traded.png
+tap PLAY
+wait 100
+expect night 0
+tap PLAY
+wait 100
+expect night 1
+tap HOME
+wait 400
+tap OCT+
+wait 600
+shot night.png
+wait 3000
+reboot
+wait 800
+expect owned 8196
+expect tickets 2512
+expect night 1

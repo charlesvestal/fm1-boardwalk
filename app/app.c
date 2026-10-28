@@ -456,8 +456,15 @@ static void step_down(void)              /* HOME: back to the boardwalk */
     if (ui.game && ui.game->leave)
         ui.game->leave();
     ui.game = 0;
-    if (won_here > 0) {                  /* the tickets won here, out of the cabinet's slot */
-        spit.n = won_here;
+    if (dirty) {                         /* saved on the way out (a prize just traded, a best): the game's sounds
+                                          * stop here anyway */
+        dirty = 0;
+        if (plat_store_save(OBJ_SAVE, &sav, sizeof sav) != 0)
+            app_warn("NOT SAVED", "THE FLASH DID NOT TAKE IT");
+    }
+    if (won_here > 0 && sav.prize.tickets) {   /* the tickets won here, out of the cabinet's slot */
+        spit.n = won_here < (int32_t)sav.prize.tickets ? won_here : (int32_t)sav.prize.tickets;   /* (not more
+                                                                     * than there are: some may be spent already) */
         spit.cab = sav.cab;
         spit.fed = 0;
         spit.at = spit.next = plat_ms() + 300u;
