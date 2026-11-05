@@ -14,3 +14,11 @@ tagline = "an arcade of music games for the FM-1"
 repo = "https://github.com/charlesvestal/fm1-boardwalk"
 licence = "MPL-2.0"
 credits = "Built on fm1-base and felucca-bsp, from Felucca by Leo Kuroshita (Hügelton Instruments)."
+
+# firmware.json, for firmware hubs (fm1-base docs/FIRMWARE-JSON.md)
+author = "Charles Vestal"
+description = "Boardwalk turns the M-VAVE FM-1 into a seaside arcade of music games. Walk along the boardwalk at golden hour, the sea and the gulls behind you, and step up to a cabinet: ring the changes on a tower's bells, name a note by ear, play a song on falling tiles, fly a gull through a pier's posts, ride a roller coaster whose track is the melody. Every game pays out tickets, and the prize counter at the start of the row trades them for prizes, from a sticker to a giant teddy."
+tags = ["game"]
+install = "https://charlesvestal.github.io/fm1-boardwalk/install/"
+site = "https://charlesvestal.github.io/fm1-boardwalk/"
+screenshot = "app/site/img/boardwalk.png"
